@@ -7,7 +7,7 @@ from torch import (
     optim
 )
 import lightning.pytorch as pl
-from .kan import (
+from .models import (
     KANElectraGeneator,
     KANElectraDiscriminator,
 )
