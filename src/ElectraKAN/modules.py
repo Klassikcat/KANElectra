@@ -2,7 +2,36 @@ from typing import *
 import torch
 from torch import nn, Tensor, FloatTensor, LongTensor
 from kan import KANLayer
-from .outputs import ElectraKANSelfOutput
+
+
+class ElectraGenerator(nn.Module):
+    def __init__(
+        self,
+        dim: int,
+        num_heads: int,
+        hidden_dim: int,
+        num_layers: int,
+        max_len: int
+    ) -> None:
+        self.layers = nn.ModuleList([
+            EncoderLayer(dim, num_heads, hidden_dim) for _ in range(num_layers)
+        ])
+        self.input_ids_embedding = PositionalEncoding(dim, max_len)
+        self.pos_embedding = PositionalEncoding(dim, max_len)
+        self.token_type_ids_embedding = PositionalEncoding(dim, max_len)
+        
+    def forward(
+        self,
+        input_ids: LongTensor,
+        attention_mask: Optional[LongTensor] = None,
+        token_type_ids: Optional[LongTensor] = None
+    ):
+        if not attention_mask:
+            attention_mask = torch.ones_like(input_ids)
+        if not token_type_ids:
+            token_type_ids = torch.zeros_like(input_ids)
+        hidden_states = self.pos_enc(input_ids)
+        
 
 
 class ElectraEncoder(nn.Module):
