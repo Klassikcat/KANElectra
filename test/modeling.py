@@ -1,8 +1,17 @@
 import unittest 
 import torch
 import sys
+
 sys.path.append('../')
-from src.modules import *
+from src.ElectraKAN import (
+    ElectraGenerator,
+    ElectraDiscriminator,
+    EncoderLayer,
+    FeedForward,
+    MultiHeadAttention,
+    Embedding,
+    GeneratorHead,
+)
 
 
 class ModuleTester(unittest.TestCase):
@@ -18,6 +27,7 @@ class ModuleTester(unittest.TestCase):
         cls.attention_mask = torch.ones_like(cls.input_ids)
         cls.token_type_ids = torch.zeros_like(cls.input_ids)
         
-    def test_SelfAttention(self):
-        attention = SelfAttention(self.dim, self.num_heads)
-    
+    def testForwardPass(self):
+        generator = ElectraGenerator(
+            
+        )

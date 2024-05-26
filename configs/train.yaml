@@ -1,0 +1,30 @@
+num_labels: 1
+datasets:
+  num_labels: 1
+datamodule:
+  batch_size: 32
+  num_workers: 4
+  pin_memory: True
+  drop_last: True
+  shuffle: True
+  collate_fn: collate_fn
+  train:
+    dataset: datasets:train
+  val:
+    dataset: datasets:val
+  test:
+    dataset: datasets:test
+nn:
+  vocab_size: 35000
+  num_classes: 1
+  embedding_dim: 768
+  vocab_type_size: 2
+  layernorm_eps: 1e-12
+  embedding_dropout_p: 0.1
+  hidden_dim: 768
+  num_heads: 12,
+  ff_dim: 3072
+  num_layers: 12
+  max_pos_embedding: 512
+trainer:
+  callbacks: null
