@@ -6,7 +6,7 @@ from torch import (
     FloatTensor, 
     LongTensor
 )
-from kan import KANLayer
+from .kan import KAN
 import torch.nn.functional as F
 
 
@@ -24,6 +24,7 @@ class ElectraGenerator(nn.Module):
         num_layers: int,
         max_pos_embedding: int = 512,
     ) -> None:
+        super().__init__()
         self.layers = nn.ModuleList([
             EncoderLayer(hidden_dim, num_heads, ff_dim) for _ in range(num_layers)
         ])
@@ -36,9 +37,9 @@ class ElectraGenerator(nn.Module):
         attention_mask: Optional[LongTensor] = None,
         token_type_ids: Optional[LongTensor] = None
     ):
-        if not attention_mask:
+        if attention_mask is None:
             attention_mask = torch.ones_like(input_ids)
-        if not token_type_ids:
+        if token_type_ids is None:
             token_type_ids = torch.zeros_like(input_ids)
         hidden_states = self.embedding_layer(input_ids, attention_mask, token_type_ids)
         for layer in self.layers:
@@ -61,6 +62,7 @@ class ElectraDiscriminator(nn.Module):
         max_pos_embedding: int = 512,
         num_labels: int = 1 
     ):
+        super().__init__()
         self.layers = nn.ModuleList([
             EncoderLayer(hidden_dim, num_heads, ff_dim) for _ in range(num_layers)
         ])
@@ -73,9 +75,9 @@ class ElectraDiscriminator(nn.Module):
         attention_mask: Optional[LongTensor] = None,
         token_type_ids: Optional[LongTensor] = None
     ):
-        if not attention_mask:
+        if attention_mask is None:
             attention_mask = torch.ones_like(input_ids)
-        if not token_type_ids:
+        if token_type_ids is None:
             token_type_ids = torch.zeros_like(input_ids)
         hidden_states = self.embedding_layer(input_ids, attention_mask, token_type_ids)
         for layer in self.layers:
@@ -86,14 +88,15 @@ class ElectraDiscriminator(nn.Module):
 class GeneratorHead(nn.Module):
     def __init__(self, hidden_dim: int, embedding_dim: int, vocab_size: int, eps: float) -> None:
         super().__init__()
-        self.kan = KANLayer(hidden_dim, embedding_dim)
-        self.out = KANLayer(embedding_dim, vocab_size)
+        self.kan = KAN(width=[hidden_dim, embedding_dim])
+        self.out = KAN(width=[embedding_dim, vocab_size])
         self.eps = eps
+        self.layernorm = nn.LayerNorm(embedding_dim, eps=self.eps)
         
     def forward(self, hidden: FloatTensor) -> FloatTensor:
         hidden = self.kan(hidden)
         hidden = F.gelu(hidden)
-        hidden = F.layer_norm(hidden, eps=self.eps)
+        hidden = self.layernorm(hidden)
         return self.out(hidden)
         
 
@@ -103,8 +106,8 @@ class Classifier(nn.Module):
         hidden_dim: int,
         num_labels: int,
     ):
-        self.kan = KANLayer(hidden_dim, hidden_dim)
-        self.out = KANLayer(hidden_dim, num_labels)
+        self.kan = KAN(width=[hidden_dim, hidden_dim])
+        self.out = KAN(width=[hidden_dim, num_labels])
         
     def forward(
         self,
@@ -137,9 +140,9 @@ class ElectraEncoder(nn.Module):
         attention_mask: Optional[LongTensor] = None,
         token_type_ids: Optional[LongTensor] = None
     ):
-        if not attention_mask:
+        if attention_mask is None:
             attention_mask = torch.ones_like(input_ids)
-        if not token_type_ids:
+        if token_type_ids is None:
             token_type_ids = torch.zeros_like(input_ids)
         hidden_states = self.pos_enc(input_ids)
         for layer in self.layers:
@@ -160,7 +163,7 @@ class EncoderLayer(nn.Module):
         x: FloatTensor, 
         mask: Optional[Tensor] = None
         ) -> FloatTensor:
-        x = self.attn(x, x, x, mask) + x
+        x = self.attn(x, mask) + x
         x = self.norm1(x)
         x = self.ff(x) + x
         return self.norm2(x)
@@ -171,13 +174,12 @@ class MultiHeadAttention(nn.Module):
         super().__init__()
         self.dim = dim
         self.num_heads = num_heads
+        assert dim % num_heads == 0
         self.head_dim = dim // num_heads
         self.scale = self.head_dim ** -0.5
         
-        self.query = KANLayer(dim, dim)
-        self.key = KANLayer(dim, dim)
-        self.value = KANLayer(dim, dim)
-        self.out = KANLayer(dim, dim)
+        self.attention = KAN(width=[dim, dim * 3])
+        self.out = KAN(width=[dim, dim])
         
     def scaled_dot_production_attn(self, query: FloatTensor, key: FloatTensor, value: FloatTensor, mask: Optional[Tensor] = None) -> Tuple[FloatTensor, FloatTensor]:
         scores = query @ key.transpose(-2, -1) * self.scale
@@ -186,33 +188,38 @@ class MultiHeadAttention(nn.Module):
         attn = scores.softmax(dim=-1)
         return attn @ value, attn   # Thanks copilot!
     
-    def split_heads(self, x: FloatTensor) -> Tensor:
-        return x.view(x.size(0), x.size(1), self.num_heads, self.head_dim).transpose(1, 2)  # Thanks copilot! - 2
-    
-    def combine_heads(self, x: FloatTensor) -> Tensor:
-        return x.transpose(1, 2).contiguous().view(x.size(0), x.size(1), self.dim)  # Thanks copilot!
+    def combine_heads(self, x: FloatTensor, b: int, t: int, c: int) -> Tensor:
+        return x.transpose(1, 2).contiguous().view(b, t, c)  # Thanks copilot!
     
     def forward(
         self, 
-        query: FloatTensor, 
-        key: FloatTensor, 
-        value: FloatTensor, 
+        input_x: FloatTensor, 
         mask: Optional[Tensor] = None
         ) -> FloatTensor:
-        query = self.split_heads(self.query(query))
-        key = self.split_heads(self.key(key))
-        value = self.split_heads(self.value(value))
+        B, T, C = input_x.shape
+        query, key, value = self.attention(input_x).split(self.dim, dim=2)
+        key = key.view(B, T, self.num_heads, C // self.num_heads).transpose(
+            1, 2
+        )  # (B, nh, T, hs)
+        query = query.view(B, T, self.num_heads, C // self.num_heads).transpose(
+            1, 2
+        )  # (B, nh, T, hs)
+        value = value.view(B, T, self.num_heads, C // self.num_heads).transpose(
+            1, 2
+        )  # (B, nh, T, hs)
+
         
-        x, attn = self.scaled_dot_production_attn(query, key, value, mask)
+        output_y, attn = self.scaled_dot_production_attn(query, key, value, mask)
+        combined_outputs = self.combine_heads(output_y, B, T, C)
         
-        return self.out(self.combine_heads(x))
+        return self.out(combined_outputs)
 
 
 class PositionWideFeedForward(nn.Module):
     def __init__(self, dim: int, intermediate_dim: int) -> None:
         super().__init__()
-        self.fc1 = KANLayer(dim, intermediate_dim)
-        self.fc2 = KANLayer(intermediate_dim, dim)
+        self.fc1 = KAN(width=[dim, intermediate_dim])
+        self.fc2 = KAN(width=[intermediate_dim, dim])
         self.activation = nn.ReLU()
         
     def forward(self, x: FloatTensor) -> FloatTensor:
@@ -246,7 +253,7 @@ class Embedding(nn.Module):
         positional_embedding_type: str = 'absolute'
     ) -> None:
         super().__init__()
-        self.word_embedding = nn.Embedding(vocab_size, embedding_dim)  
+        self.word_embedding = nn.Embedding(vocab_size, embedding_dim, padding_idx=0)  
         self.pos_embedding = nn.Embedding(max_pos_embedding, embedding_dim)
         self.token_type_embedding = nn.Embedding(vocab_type_size, embedding_dim)
         

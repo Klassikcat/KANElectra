@@ -6,3 +6,12 @@
 .dotnet
 .yarn
 .npm
+.redhat/
+.quokka/
+.devcontainer/
+.wallaby
+.wget-hsts
+.bash_history
+.idea/
+.vscode/
+.vscode-server/
