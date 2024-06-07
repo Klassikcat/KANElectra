@@ -1,8 +1,10 @@
+import csv
+from os import PathLike
 from typing import List, Tuple, Set, Optional
 
 import torch
 import numpy as np
-from transformers import PreTrainedTokenizer
+from transformers import PreTrainedTokenizer, AutoTokenizer
 from torch.utils.data import Dataset, DataLoader
 import lightning.pytorch as ptl
 
@@ -61,6 +63,7 @@ class ElectraPretrainingDataset(Dataset):
         max_length: int = 512
     ) -> None:
         super().__init__()
+        self.texts = texts
         self.tokenizer = tokenizer
         self.max_length = max_length
         
@@ -75,23 +78,39 @@ class ElectraPretrainingDataset(Dataset):
         return tokens_to_be_masked
     
     def __getitem__(self, idx: int) -> Tuple[torch.LongTensor, torch.LongTensor, torch.LongTensor, torch.LongTensor, torch.LongTensor]:
-        input_ids, attention_mask, token_type_ids = tuple(
+        input_ids, token_type_ids, attention_mask = tuple(
             self.tokenizer(
                 self.texts[idx], 
-                return_dict=True, 
                 return_attention_mask=True,
                 return_token_type_ids=True,
                 return_tensors='pt',
-                max_length=self.max_length
+                max_length=self.max_length,
+                padding="max_length",
+                truncation=True
             )\
             .values()
         )
-        masked_input_ids, y_true_ids = self.dynamic_masking(input_ids)
-        return masked_input_ids, attention_mask, token_type_ids, input_ids
+        masked_input_ids = self.dynamic_masking(input_ids.squeeze(0))
+        return masked_input_ids, attention_mask.squeeze(0), token_type_ids.squeeze(0), input_ids.squeeze(0)
     
     @classmethod
-    def from_csv(cls):
-        pass
+    def from_csv(
+        cls, 
+        path: PathLike|str, 
+        tokenizer: PreTrainedTokenizer|str, 
+        text_row: int, 
+        text_b_row: Optional[int] = None,
+        max_length: int = 512
+        ):
+        with open(path, 'r') as f:
+            reader = csv.reader(f)
+            dataset = []
+            for row in reader:
+                text = row[text_row]
+                label = row[text_row]
+                text_b = row[text_b_row] if text_b_row else None
+                dataset.append(text, label, text_b) if text_b else dataset.append(text, label)
+        return cls(dataset, tokenizer, max_length)
 
 
 class ElectraClassificationDataset(Dataset):
@@ -116,20 +135,40 @@ class ElectraClassificationDataset(Dataset):
     
     def __getitem__(self, idx: int) -> Tuple[torch.LongTensor, torch.LongTensor, torch.LongTensor, torch.LongTensor]:
         text, label = self.texts_and_labels[idx]
-        input_ids, attention_mask, token_type_ids = tuple(
+        input_ids, token_type_ids, attention_mask = tuple(
             self.tokenizer(
                 text, 
-                return_dict=True, 
                 return_attention_mask=True,
                 return_token_type_ids=True,
                 return_tensors='pt',
-                max_length=self.max_length
+                max_length=self.max_length,
+                padding="max_length",
+                truncation=True
             )\
             .values()
         )
         label_id = self.label_dict[label]
-        return input_ids, attention_mask, token_type_ids, torch.tensor(label_id, dtype=torch.long)
+        return input_ids.squeeze(0), attention_mask.squeeze(0), token_type_ids.squeeze(0), torch.tensor(label_id, dtype=torch.long)
     
     @classmethod
-    def from_csv(cls):
-        pass
+    def from_csv(
+        cls, 
+        path: PathLike|str, 
+        tokenizer: PreTrainedTokenizer|str, 
+        text_row: int, 
+        label_row: int,
+        text_b_row: Optional[int] = None,
+        max_length: int = 512
+    ):
+        tokenizer = tokenizer if isinstance(tokenizer, PreTrainedTokenizer) else AutoTokenizer.from_pretrained(tokenizer)
+        dataset = []
+        labels = []
+        with open(path, 'r') as f:
+            reader = csv.reader(f)
+            for row in reader:
+                text = row[text_row]
+                text_b_row = row[text_b_row] if text_b_row else None
+                label = row[label_row]
+                dataset.append((text, label, text_b_row)) if text_b_row else dataset.append((text, label))
+                labels.append(label)
+        return cls(dataset, tokenizer, max_length=max_length, labels=list(set(labels)))
