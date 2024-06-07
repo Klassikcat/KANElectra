@@ -1,0 +1,46 @@
+cff-version: 1.1.0
+references:
+  - type: misc
+    authors:
+      - family-names: "Park"
+        given-names: "Jangwon"
+    title: "KoELECTRA: Pretrained ELECTRA Model for Korean"
+    year: 2020
+    version: 1.0.0
+    publisher: "GitHub"
+    url: "https://github.com/monologg/KoELECTRA"
+  - type: inproceedings
+    authors:
+      - family-names: "Clark"
+        given-names: "Kevin"
+      - family-names: "Luong"
+        given-names: "Minh-Thang"
+      - family-names: "Le"
+        given-names: "Quoc V."
+      - family-names: "Manning"
+        given-names: "Christopher D."
+    title: "ELECTRA: Pre-training Text Encoders as Discriminators Rather Than Generators"
+    year: 2020
+    booktitle: "ICLR"
+    url: "https://openreview.net/pdf?id=r1xMH1BtvB"
+  - type: article
+    authors:
+      - family-names: "Liu"
+        given-names: "Ziming"
+      - family-names: "Wang"
+        given-names: "Yixuan"
+      - family-names: "Vaidya"
+        given-names: "Sachin"
+      - family-names: "Ruehle"
+        given-names: "Fabian"
+      - family-names: "Halverson"
+        given-names: "James"
+      - family-names: "Soljačić"
+        given-names: "Marin"
+      - family-names: "Hou"
+        given-names: "Thomas Y"
+      - family-names: "Tegmark"
+        given-names: "Max"
+    title: "KAN: Kolmogorov-Arnold Networks"
+    year: 2024
+    journal: "arXiv preprint arXiv:2404.19756"
