@@ -17,5 +17,5 @@ except ModuleNotFoundError:
 
 @hydra.main(config_path="../configs", config_name="train")
 def main(cfg: DictConfig) -> None:
-    pass
+    
 

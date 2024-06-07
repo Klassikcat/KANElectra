@@ -1,19 +1,18 @@
-num_labels: 1
+max_length: 512
 datasets:
-  num_labels: 1
+  train:
+    path: data/train.csv
+    max_length: ${max_length}
+  val:
+    path: data/val.csv
+    max_length: ${max_length}
+  test:
+    path: data/test.csv
+    max_length: ${max_length}
 datamodule:
   batch_size: 32
   num_workers: 4
   pin_memory: True
-  drop_last: True
-  shuffle: True
-  collate_fn: collate_fn
-  train:
-    dataset: datasets:train
-  val:
-    dataset: datasets:val
-  test:
-    dataset: datasets:test
 nn:
   generator:
     vocab_size: 35000
@@ -39,4 +38,21 @@ nn:
     num_layers: 12
     max_pos_embedding: 512
 trainer:
-  callbacks: null
+  accelerator: auto
+  devices: 1
+  max_epochs: 10
+  precision: 32
+  enable_progress_bar: true
+  callbacks: 
+    - name: ModelCheckpoint
+      params:
+        monitor: val_loss
+        mode: min
+        save_top_k: 1
+        dirpath: checkpoints
+        filename: "{epoch}-{val_loss:.2f}"
+    - name: TensorRTCompiler
+      params:
+        
+
+  
