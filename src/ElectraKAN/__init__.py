@@ -2,7 +2,7 @@ __version__ = 'v0.5.0'
 
 from .callbacks import (
     PretrainingCheckpoint,
-    TensorRTCompiler
+    OnnxCompiler
 )
 from .handlers import (
     ClassificationHandler,
