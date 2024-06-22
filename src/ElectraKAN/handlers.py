@@ -85,8 +85,8 @@ class AccelerationHandler(pl.LightningModule):
 class ElectraPretrainingHandler(AccelerationHandler):
     def __init__(self, config: DictConfig) -> None:
         super().__init__()
-        self.generator = ElectraGenerator(**config.nn.generator) 
-        self.discriminator = ElectraDiscriminator(**config.nn.discriminator) 
+        self.generator = ElectraGenerator(**config.generator) 
+        self.discriminator = ElectraDiscriminator(**config.discriminator) 
     
     def forward(
         self, 
