@@ -1,14 +1,18 @@
 max_length: 512
+tokenizer_name: "google/electra-base-discriminator"
 datasets:
   train:
     path: data/train.csv
     max_length: ${max_length}
+    text_row: 0
   val:
     path: data/val.csv
     max_length: ${max_length}
+    text_row: 0
   test:
     path: data/test.csv
     max_length: ${max_length}
+    text_row: 0
 datamodule:
   batch_size: 32
   num_workers: 4
