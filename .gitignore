@@ -18,3 +18,5 @@
 .viminfo
 /__pycache__/
 src/ElectraKAN/__pycache__/
+.vscode/
+.venv/

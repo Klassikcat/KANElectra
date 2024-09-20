@@ -67,7 +67,7 @@ class ElectraDiscriminator(nn.Module):
             EncoderLayer(hidden_dim, num_heads, ff_dim) for _ in range(num_layers)
         ])
         self.embedding_layer = Embedding(vocab_size, embedding_dim, max_pos_embedding, vocab_type_size, layernorm_eps, embedding_dropout_p)
-        self.head = Classifier(hidden_dim, embedding_dim, num_labels, layernorm_eps)
+        self.head = Classifier(hidden_dim, num_labels)
         
     def forward(
         self,
@@ -106,6 +106,7 @@ class Classifier(nn.Module):
         hidden_dim: int,
         num_labels: int,
     ):
+        super().__init__()
         self.kan = KAN(width=[hidden_dim, hidden_dim])
         self.out = KAN(width=[hidden_dim, num_labels])
         
@@ -127,6 +128,7 @@ class ElectraEncoder(nn.Module):
         num_layers: int,
         max_len: int
     ) -> None:
+        super().__init__()
         self.layers = nn.ModuleList([
             EncoderLayer(dim, num_heads, hidden_dim) for _ in range(num_layers)
         ])
@@ -138,13 +140,17 @@ class ElectraEncoder(nn.Module):
         self,
         input_ids: LongTensor,
         attention_mask: Optional[LongTensor] = None,
-        token_type_ids: Optional[LongTensor] = None
+        token_type_ids: Optional[LongTensor] = None,
     ):
         if attention_mask is None:
             attention_mask = torch.ones_like(input_ids)
+        else:
+            attention_mask = self.pos_embedding(attention_mask)
         if token_type_ids is None:
             token_type_ids = torch.zeros_like(input_ids)
-        hidden_states = self.pos_enc(input_ids)
+        else:
+            token_type_ids = self.token_type_ids_embedding(token_type_ids)
+        hidden_states = self.input_ids_embedding(input_ids)
         for layer in self.layers:
             hidden_states = layer(hidden_states)
         return hidden_states
@@ -229,13 +235,12 @@ class PositionWideFeedForward(nn.Module):
 class PositionalEncoding(nn.Module):
     def __init__(self, dim: int, max_len: int) -> None:
         super().__init__()
-        self.pos_enc = nn.Parameter(torch.zeros(max_len, dim))
+        self.pos_enc = nn.Parameter(torch.zeros(max_len, dim), requires_grad=False)
         pos = torch.arange(0, max_len).unsqueeze(1)
         div = torch.exp(torch.arange(0, dim, 2) * -(torch.log(torch.tensor(10000.0)) / dim))
         self.pos_enc[:, 0::2] = torch.sin(pos * div)
         self.pos_enc[:, 1::2] = torch.cos(pos * div)
         
-        self.register_buffer('pos_enc', self.pos_enc)
         
     def forward(self, x: FloatTensor) -> FloatTensor:
         return x + self.pos_enc[:x.size(1)]

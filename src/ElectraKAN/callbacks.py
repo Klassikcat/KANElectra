@@ -8,12 +8,12 @@ from typing import Optional, Literal, Dict, Tuple
 from datetime import timedelta
 
 
-class PretrainingCheckpoint(pl.ModelCheckpoint):
+class PretrainingCheckpoint(pl.callbacks.ModelCheckpoint):
     def __init__(self) -> None:
         super().__init__()  # TODO: Add a checkpointer for generator and discriminator
         
         
-class OnnxCompiler(pl.ModelCheckpoint):
+class OnnxCompiler(pl.callbacks.ModelCheckpoint):
     def __init__(
         self,
         dirpath: Optional[_PATH] = None,
