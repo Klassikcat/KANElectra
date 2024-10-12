@@ -1,4 +1,5 @@
 from typing import *
+import math
 import torch
 from torch import (
     nn, 
@@ -16,268 +17,252 @@ class ElectraGenerator(nn.Module):
         vocab_size: int,
         embedding_dim: int,
         vocab_type_size: int,
-        layernorm_eps: float,
         embedding_dropout_p: float,
         hidden_dim: int,
         num_heads: int,
         ff_dim: int,
         num_layers: int,
-        max_pos_embedding: int = 512,
-    ) -> None:
+        max_pos_embedding: int
+    ):
         super().__init__()
-        self.layers = nn.ModuleList([
-            EncoderLayer(hidden_dim, num_heads, ff_dim) for _ in range(num_layers)
-        ])
-        self.embedding_layer = Embedding(vocab_size, embedding_dim, max_pos_embedding, vocab_type_size, layernorm_eps, embedding_dropout_p)
-        self.head = GeneratorHead(hidden_dim, embedding_dim, vocab_size, layernorm_eps)
+        self.embedding = InputEmbedding(
+            vocab_size,
+            embedding_dim,
+            vocab_type_size,
+            embedding_dropout_p,
+            max_pos_embedding
+        )
+        self.encoder = ElectraEncoder(
+            hidden_dim,
+            num_heads,
+            num_layers,
+            0.1,
+            ff_dim
+        )
+        self.generator = GeneratorOutput(hidden_dim, vocab_size)
         
     def forward(
-        self,
-        input_ids: LongTensor,
-        attention_mask: Optional[LongTensor] = None,
-        token_type_ids: Optional[LongTensor] = None
-    ):
-        if attention_mask is None:
-            attention_mask = torch.ones_like(input_ids)
-        if token_type_ids is None:
-            token_type_ids = torch.zeros_like(input_ids)
-        hidden_states = self.embedding_layer(input_ids, attention_mask, token_type_ids)
-        for layer in self.layers:
-            hidden_states = layer(hidden_states)
-        return self.head(hidden_states)
+        self, 
+        input_ids: LongTensor, 
+        attention_mask: LongTensor,
+        token_type_ids: LongTensor,
+    ) -> Tensor:
+        embeddings = self.embedding(input_ids, token_type_ids)
+        seq_out = self.encoder(embeddings, attention_mask)
+        dropouted_seq_output = F.dropout(seq_out, p=0.1)
+        return self.generator(dropouted_seq_output)
+    
 
-
+class GeneratorOutput(nn.Module):
+    def __init__(self, hidden, vocab_size) :
+        super().__init__()
+        self.linear = nn.Linear(hidden, vocab_size)
+        self.softmax = nn.LogSoftmax(dim = -1)
+        
+    def forward(self, x) :
+        return self.softmax(self.linear(x))
+    
+    
 class ElectraDiscriminator(nn.Module):
     def __init__(
         self,
         vocab_size: int,
         embedding_dim: int,
         vocab_type_size: int,
-        layernorm_eps: float,
         embedding_dropout_p: float,
         hidden_dim: int,
         num_heads: int,
         ff_dim: int,
         num_layers: int,
-        max_pos_embedding: int = 512,
-        num_labels: int = 1 
+        max_pos_embedding: int,
+        num_labels: int
     ):
         super().__init__()
-        self.layers = nn.ModuleList([
-            EncoderLayer(hidden_dim, num_heads, ff_dim) for _ in range(num_layers)
-        ])
-        self.embedding_layer = Embedding(vocab_size, embedding_dim, max_pos_embedding, vocab_type_size, layernorm_eps, embedding_dropout_p)
-        self.head = Classifier(hidden_dim, num_labels)
+        self.embedding = InputEmbedding(
+            vocab_size,
+            embedding_dim,
+            vocab_type_size,
+            embedding_dropout_p,
+            max_pos_embedding
+        )
+        self.encoder = ElectraEncoder(
+            hidden_dim,
+            num_heads,
+            num_layers,
+            0.1,
+            ff_dim
+        )
+        self.classifier = KAN(width=[hidden_dim, num_labels])
         
     def forward(
-        self,
-        input_ids: LongTensor,
-        attention_mask: Optional[LongTensor] = None,
-        token_type_ids: Optional[LongTensor] = None
-    ):
-        if attention_mask is None:
-            attention_mask = torch.ones_like(input_ids)
-        if token_type_ids is None:
-            token_type_ids = torch.zeros_like(input_ids)
-        hidden_states = self.embedding_layer(input_ids, attention_mask, token_type_ids)
-        for layer in self.layers:
-            hidden_states = layer(hidden_states)
-        return self.head(hidden_states)
+        self, 
+        input_ids: LongTensor, 
+        attention_mask: LongTensor,
+        token_type_ids: LongTensor,
+    ) -> Tensor:
+        embeddings = self.embedding(input_ids, token_type_ids)
+        seq_out = self.encoder(embeddings, attention_mask)
+        dropouted_seq_output = F.dropout(seq_out, p=0.1)
+        return self.classifier(dropouted_seq_output)
     
-
-class GeneratorHead(nn.Module):
-    def __init__(self, hidden_dim: int, embedding_dim: int, vocab_size: int, eps: float) -> None:
-        super().__init__()
-        self.kan = KAN(width=[hidden_dim, embedding_dim])
-        self.out = KAN(width=[embedding_dim, vocab_size])
-        self.eps = eps
-        self.layernorm = nn.LayerNorm(embedding_dim, eps=self.eps)
-        
-    def forward(self, hidden: FloatTensor) -> FloatTensor:
-        hidden = self.kan(hidden)
-        hidden = F.gelu(hidden)
-        hidden = self.layernorm(hidden)
-        return self.out(hidden)
-        
-
-class Classifier(nn.Module):
-    def __init__(
-        self,
-        hidden_dim: int,
-        num_labels: int,
-    ):
-        super().__init__()
-        self.kan = KAN(width=[hidden_dim, hidden_dim])
-        self.out = KAN(width=[hidden_dim, num_labels])
-        
-    def forward(
-        self,
-        hidden: FloatTensor
-    ):
-        hidden = self.kan(hidden)
-        hidden = F.gelu(hidden)
-        return self.out(hidden).squeeze(-1)
-
 
 class ElectraEncoder(nn.Module):
     def __init__(
         self,
         dim: int,
         num_heads: int,
-        hidden_dim: int,
         num_layers: int,
-        max_len: int
-    ) -> None:
+        dropout_p: float = 0.1,
+        hidden_dim: Optional[int] = None,
+    ):
         super().__init__()
+        if not hidden_dim:
+            hidden_dim = dim * 4 # default hidden_dim on paper
         self.layers = nn.ModuleList([
-            EncoderLayer(dim, num_heads, hidden_dim) for _ in range(num_layers)
+            EncoderLayer(dim, num_heads, hidden_dim, dropout_p) for i in range(num_layers)
         ])
-        self.input_ids_embedding = PositionalEncoding(dim, max_len)
-        self.pos_embedding = PositionalEncoding(dim, max_len)
-        self.token_type_ids_embedding = PositionalEncoding(dim, max_len)
         
     def forward(
         self,
-        input_ids: LongTensor,
-        attention_mask: Optional[LongTensor] = None,
-        token_type_ids: Optional[LongTensor] = None,
-    ):
-        if attention_mask is None:
-            attention_mask = torch.ones_like(input_ids)
-        else:
-            attention_mask = self.pos_embedding(attention_mask)
-        if token_type_ids is None:
-            token_type_ids = torch.zeros_like(input_ids)
-        else:
-            token_type_ids = self.token_type_ids_embedding(token_type_ids)
-        hidden_states = self.input_ids_embedding(input_ids)
+        hidden_states: Tensor,
+        mask: Tensor
+    ) -> Tensor:
         for layer in self.layers:
-            hidden_states = layer(hidden_states)
+            hidden_states = layer(hidden_states, mask)
         return hidden_states
 
     
-class EncoderLayer(nn.Module):
-    def __init__(self, dim: int, num_heads: int, ff_dim: int) -> None:
+class InputEmbedding(nn.Module):
+    def __init__(
+        self,
+        vocab_size: int,
+        embedding_dim: int,
+        vocab_type_size: int,
+        embedding_dropout_p: float,
+        max_pos_embedding: int
+        ):
+       super().__init__()
+       self.embedding = nn.Embedding(vocab_size, embedding_dim)
+       self.positional_embedding = nn.Embedding(max_pos_embedding, embedding_dim)
+       self.token_type_embedding = nn.Embedding(vocab_type_size, embedding_dim)
+       self.dropout = nn.Dropout(embedding_dropout_p)
+   
+    def forward(
+        self, 
+        input_ids: LongTensor, 
+        token_type_ids: LongTensor,
+    ) -> Tensor:
+        seq_length = input_ids.shape[1]
+        position_ids = torch.arange(seq_length, dtype=torch.long, device=input_ids.device)
+        position_ids = position_ids.unsqueeze(0).expand_as(input_ids)
+        
+        embeddings = (
+            self.embedding(input_ids) +
+            self.positional_embedding(position_ids) +
+            self.token_type_embedding(token_type_ids)
+        )
+        return self.dropout(embeddings)
+
+
+class ScaledDotProductAttention(nn.Module):
+    def __init__(self, dropout_p: float):
         super().__init__()
-        self.attn = MultiHeadAttention(dim, num_heads)
-        self.ff = PositionWideFeedForward(dim, ff_dim)
+        self.softmax = nn.Softmax(dim=-1)
+        
+    def forward(
+        self, 
+        query: Tensor, 
+        key: Tensor,
+        value: Tensor,
+        attention_mask: LongTensor
+    ) -> Tensor:
+        multiplied_kv = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(key.shape[-1])
+        masked_attention = multiplied_kv.masked_fill(attention_mask == 0, -1e9)
+        attention = self.softmax(masked_attention)
+        return torch.matmul(attention, value)
+        
+        
+class MultiHeadAttention(nn.Module):
+    def __init__(
+        self,
+        dim: int,
+        num_heads: int,
+        dropout_p: float
+    ):
+        super().__init__()
+        assert dim % num_heads == 0
+        self.attention = ScaledDotProductAttention(dropout_p)
+        self.dropout = nn.Dropout(dropout_p)
+        self.fc_q = KAN(width=[dim, dim])
+        self.fc_k = KAN(width=[dim, dim])
+        self.fc_v = KAN(width=[dim, dim])
+        self.fc_out = KAN(width=[dim, dim])
+        self.num_heads = num_heads 
+        self.dim = dim
+               
+    def forward(
+        self, 
+        query: Tensor, 
+        key: Tensor,
+        value: Tensor,
+        attention_mask: LongTensor
+    ) -> Tensor:
+        batch_size = query.size(0)
+        query = self.fc_q(query).view(batch_size, -1, self.num_heads, query.size(-1) // self.num_heads).transpose(1, 2)
+        key = self.fc_k(key).view(batch_size, -1, self.num_heads, key.size(-1) // self.num_heads).transpose(1, 2)
+        value = self.fc_v(value).view(batch_size, -1, self.num_heads, value.size(-1) // self.num_heads).transpose(1, 2)
+        attention_output = self.attention(query, key, value, attention_mask)
+        attention_output = attention_output.transpose(1, 2).contiguous().view(batch_size, -1, self.num_heads * (self.dim // self.num_heads))
+        output = self.fc_out(attention_output)
+        return self.dropout(output)
+ 
+
+class FeedForward(nn.Module):
+    def __init__(
+        self,
+        dim: int,
+        ff_dim: int,
+        dropout_p: float
+    ):
+        super().__init__()
+        self.fc1 = nn.Linear(dim, ff_dim)
+        self.relu = nn.ReLU()
+        self.fc2 = nn.Linear(ff_dim, dim)
+        self.dropout = nn.Dropout(dropout_p)
+        
+    def forward(
+        self, 
+        x: Tensor
+    ) -> Tensor:
+        x = self.fc1(x)
+        x = self.relu(x)
+        x = self.fc2(x)
+        x = self.dropout(x)
+        return x
+    
+
+class EncoderLayer(nn.Module):
+    def __init__(
+        self,
+        dim: int,
+        num_heads: int,
+        hidden_dim: int,
+        dropout_p: float
+    ):
+        super().__init__()
+        self.attn = MultiHeadAttention(dim, num_heads, dropout_p)
+        self.ff = FeedForward(dim, hidden_dim, dropout_p)
         self.norm1 = nn.LayerNorm(dim)
         self.norm2 = nn.LayerNorm(dim)
+        self.dropout = nn.Dropout(dropout_p)
         
     def forward(
         self, 
-        x: FloatTensor, 
-        mask: Optional[Tensor] = None
-        ) -> FloatTensor:
-        x = self.attn(x, mask) + x
-        x = self.norm1(x)
-        x = self.ff(x) + x
-        return self.norm2(x)
-
-
-class MultiHeadAttention(nn.Module):
-    def __init__(self, dim: int, num_heads: int) -> None:
-        super().__init__()
-        self.dim = dim
-        self.num_heads = num_heads
-        assert dim % num_heads == 0
-        self.head_dim = dim // num_heads
-        self.scale = self.head_dim ** -0.5
-        
-        self.attention = KAN(width=[dim, dim * 3])
-        self.out = KAN(width=[dim, dim])
-        
-    def scaled_dot_production_attn(self, query: FloatTensor, key: FloatTensor, value: FloatTensor, mask: Optional[Tensor] = None) -> Tuple[FloatTensor, FloatTensor]:
-        scores = query @ key.transpose(-2, -1) * self.scale
-        if mask is not None:
-            scores.masked_fill_(mask, float('-inf'))
-        attn = scores.softmax(dim=-1)
-        return attn @ value, attn   # Thanks copilot!
-    
-    def combine_heads(self, x: FloatTensor, b: int, t: int, c: int) -> Tensor:
-        return x.transpose(1, 2).contiguous().view(b, t, c)  # Thanks copilot!
-    
-    def forward(
-        self, 
-        input_x: FloatTensor, 
-        mask: Optional[Tensor] = None
-        ) -> FloatTensor:
-        B, T, C = input_x.shape
-        query, key, value = self.attention(input_x).split(self.dim, dim=2)
-        key = key.view(B, T, self.num_heads, C // self.num_heads).transpose(
-            1, 2
-        )  # (B, nh, T, hs)
-        query = query.view(B, T, self.num_heads, C // self.num_heads).transpose(
-            1, 2
-        )  # (B, nh, T, hs)
-        value = value.view(B, T, self.num_heads, C // self.num_heads).transpose(
-            1, 2
-        )  # (B, nh, T, hs)
-
-        
-        output_y, attn = self.scaled_dot_production_attn(query, key, value, mask)
-        combined_outputs = self.combine_heads(output_y, B, T, C)
-        
-        return self.out(combined_outputs)
-
-
-class PositionWideFeedForward(nn.Module):
-    def __init__(self, dim: int, intermediate_dim: int) -> None:
-        super().__init__()
-        self.fc1 = KAN(width=[dim, intermediate_dim])
-        self.fc2 = KAN(width=[intermediate_dim, dim])
-        self.activation = nn.ReLU()
-        
-    def forward(self, x: FloatTensor) -> FloatTensor:
-        return self.fc2(self.activation(self.fc1(x)))
-    
-
-class PositionalEncoding(nn.Module):
-    def __init__(self, dim: int, max_len: int) -> None:
-        super().__init__()
-        self.pos_enc = nn.Parameter(torch.zeros(max_len, dim), requires_grad=False)
-        pos = torch.arange(0, max_len).unsqueeze(1)
-        div = torch.exp(torch.arange(0, dim, 2) * -(torch.log(torch.tensor(10000.0)) / dim))
-        self.pos_enc[:, 0::2] = torch.sin(pos * div)
-        self.pos_enc[:, 1::2] = torch.cos(pos * div)
-        
-        
-    def forward(self, x: FloatTensor) -> FloatTensor:
-        return x + self.pos_enc[:x.size(1)]
-    
-    
-class Embedding(nn.Module):
-    def __init__(
-        self, 
-        vocab_size: int, 
-        embedding_dim: int, 
-        max_pos_embedding: int, 
-        vocab_type_size: Optional[int] = 2,
-        eps: Optional[float] = 1e-12,
-        dropout_p: Optional[float] = .1,
-        positional_embedding_type: str = 'absolute'
-    ) -> None:
-        super().__init__()
-        self.word_embedding = nn.Embedding(vocab_size, embedding_dim, padding_idx=0)  
-        self.pos_embedding = nn.Embedding(max_pos_embedding, embedding_dim)
-        self.token_type_embedding = nn.Embedding(vocab_type_size, embedding_dim)
-        
-        self.layernorm = nn.LayerNorm(embedding_dim, eps=eps)
-        self.dropout_p = dropout_p
-        self.positional_embedding_type = positional_embedding_type
-        
-    def forward(
-        self,
-        input_ids: LongTensor,
-        attention_mask: LongTensor,
-        token_type_ids: LongTensor,
-    ) -> FloatTensor:
-        input_embedding = self.word_embedding(input_ids)
-        token_type_embedding = self.token_type_embedding(attention_mask)
-        embedding = input_embedding + token_type_embedding
-        if self.positional_embedding_type in ['absolute', 'abs']:
-            pos_embedding = self.pos_embedding(attention_mask) 
-            embedding += pos_embedding
-        embedding = self.layernorm(embedding)
-        embedding = F.dropout(embedding, p=self.dropout_p)
-        return embedding
+        x: Tensor, 
+        attention_mask: LongTensor
+    ) -> Tensor:
+        attention_output = self.attn(x, x, x, attention_mask)
+        add_norm = self.norm1(x + attention_output)
+        output = self.ff(attention_output)
+        ff_add_norm = self.norm2(add_norm + output)
+        return self.dropout(ff_add_norm)

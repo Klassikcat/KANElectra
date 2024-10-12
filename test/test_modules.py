@@ -7,7 +7,7 @@ from src.ElectraKAN.modules import *
 
 class TestModules(unittest.TestCase):
     def setUp(self):
-        self.vocab_size = 100
+        self.vocab_size = 10001
         self.embedding_dim = 128
         self.vocab_type_size = 20000
         self.layernorm_eps = 1e-6
@@ -19,7 +19,7 @@ class TestModules(unittest.TestCase):
         self.max_pos_embedding = 512
         self.num_labels = 2
         self.dim = 512
-        self.max_len = 100
+        self.max_len = 512 
         self.input_ids = torch.randint(0, 10000, (8, self.dim)).long()
         self.attn_mask = torch.randint(0, 1, (8, self.dim)).long()
         self.token_type_ids = torch.randint(0, 1, (8, self.dim)).long()
