@@ -20,3 +20,5 @@
 src/ElectraKAN/__pycache__/
 .vscode/
 .venv/
+/data/MNLI
+/data/*.zip
