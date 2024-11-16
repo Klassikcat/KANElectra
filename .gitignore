@@ -22,3 +22,6 @@ src/ElectraKAN/__pycache__/
 .venv/
 /data/MNLI
 /data/*.zip
+/data/*.tar.gz
+/data/*.json
+/data/*.txt
