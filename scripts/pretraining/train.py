@@ -5,13 +5,13 @@ from typing import List
 import lightning.pytorch as pl
 try:
     from ElectraKAN.datamodule import ElectraKANDataModule, ElectraPretrainingDataset
-    from ElectraKAN.handlers import ElectraPretrainingHandler
+    from ElectraKAN.handlers import ElectraModel
     from ElectraKAN import callbacks
 except ModuleNotFoundError:
     import sys
     sys.path.append('../')
     from ElectraKAN.datamodule import ElectraKANDataModule, ElectraPretrainingDataset
-    from ElectraKAN.handlers import ElectraPretrainingHandler
+    from ElectraKAN.handlers import ElectraModel
     from ElectraKAN import callbacks
 
 
@@ -22,7 +22,7 @@ def main(cfg: DictConfig) -> None:
         dataset_config=cfg.dataset,
         datamodule_config=cfg.datamodule
     )
-    model = ElectraPretrainingHandler(cfg.nn)
+    model = ElectraModel(cfg.nn)
     callbacks = get_callbacks(cfg.trainer.callbacks)
     del cfg.trainer.callbacks
     trainer = pl.Trainer(**cfg.trainer, callbacks=callbacks)
