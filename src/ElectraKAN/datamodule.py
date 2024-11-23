@@ -6,6 +6,7 @@ import torch
 import numpy as np
 from transformers import PreTrainedTokenizer, AutoTokenizer
 from torch.utils.data import Dataset, DataLoader
+import torch.nn.functional as F
 import lightning.pytorch as ptl
 
 
@@ -26,7 +27,7 @@ class ElectraKANDataModule(ptl.LightningDataModule):
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.pin_memory = pin_memory
-        
+
     def train_dataloader(self) -> DataLoader:
         return DataLoader(
             self.train_dataset,
@@ -35,7 +36,7 @@ class ElectraKANDataModule(ptl.LightningDataModule):
             pin_memory=self.pin_memory,
             shuffle=True
         )
-    
+
     def val_dataloader(self) -> DataLoader:
         return DataLoader(
             self.val_dataset,
@@ -44,7 +45,7 @@ class ElectraKANDataModule(ptl.LightningDataModule):
             pin_memory=self.pin_memory,
             shuffle=False
         )
-    
+
     def test_dataloader(self) -> DataLoader:
         return DataLoader(
             self.test_dataset,
@@ -66,21 +67,25 @@ class ElectraPretrainingDataset(Dataset):
         self.texts = texts
         self.tokenizer = tokenizer
         self.max_length = max_length
-        
+
     def __len__(self) -> int:
         return len(self.texts)
-    
-    def dynamic_masking(self, tokens: torch.Tensor) -> Tuple[torch.LongTensor, torch.LongTensor]:
-        tokens_to_be_masked = tokens.clone()
-        num_tokens = len(tokens)
-        masked_indices = torch.bernoulli(torch.full((num_tokens,), 0.15)).bool()
-        tokens_to_be_masked[masked_indices] = self.tokenizer.mask_token_id
+
+    def dynamic_masking(self, tokens: torch.Tensor) -> torch.Tensor:
+        tokens_to_be_masked: torch.Tensor = tokens.clone()
+        end_of_token: int = int(torch.where(tokens == self.tokenizer.sep_token_id)[0].item()) - 1
+        masked_indices = torch.bernoulli(torch.full((end_of_token,), 0.15)).bool()
+        if masked_indices[0] == True:
+            masked_indices[0] = False
+            masked_indices[1] = True
+        padded_masked_indices: torch.Tensor = F.pad(masked_indices, mode='constant', value=False, pad=(self.max_length - end_of_token, 0))
+        tokens_to_be_masked[padded_masked_indices] = self.tokenizer.mask_token_id
         return tokens_to_be_masked
-    
-    def __getitem__(self, idx: int) -> Tuple[torch.LongTensor, torch.LongTensor, torch.LongTensor, torch.LongTensor, torch.LongTensor]:
-        input_ids, token_type_ids, attention_mask = tuple(
+
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.LongTensor, torch.Tensor]:
+        tokenized: Tuple[torch.LongTensor, torch.LongTensor, torch.LongTensor] = tuple(
             self.tokenizer(
-                self.texts[idx], 
+                self.texts[idx],
                 return_attention_mask=True,
                 return_token_type_ids=True,
                 return_tensors='pt',
@@ -90,15 +95,16 @@ class ElectraPretrainingDataset(Dataset):
             )\
             .values()
         )
+        input_ids, token_type_ids, attention_mask = tokenized
         masked_input_ids = self.dynamic_masking(input_ids.squeeze(0))
         return masked_input_ids, attention_mask.squeeze(0), token_type_ids.squeeze(0), input_ids.squeeze(0)
-    
+
     @classmethod
     def from_csv(
-        cls, 
-        path: PathLike|str, 
-        tokenizer: PreTrainedTokenizer|str, 
-        text_row: int, 
+        cls,
+        path: PathLike|str,
+        tokenizer: PreTrainedTokenizer|str,
+        text_row: int,
         text_b_row: Optional[int] = None,
         max_length: int = 512
         ):
@@ -129,15 +135,15 @@ class ElectraClassificationDataset(Dataset):
         self.label_dict = {
             v: k for k, v in enumerate(self.labels)
         }
-        
+
     def __len__(self) -> int:
         return len(self.texts_and_labels)
-    
+
     def __getitem__(self, idx: int) -> Tuple[torch.LongTensor, torch.LongTensor, torch.LongTensor, torch.LongTensor]:
         text, label = self.texts_and_labels[idx]
         input_ids, token_type_ids, attention_mask = tuple(
             self.tokenizer(
-                text, 
+                text,
                 return_attention_mask=True,
                 return_token_type_ids=True,
                 return_tensors='pt',
@@ -149,13 +155,13 @@ class ElectraClassificationDataset(Dataset):
         )
         label_id = self.label_dict[label]
         return input_ids.squeeze(0), attention_mask.squeeze(0), token_type_ids.squeeze(0), torch.tensor(label_id, dtype=torch.long)
-    
+
     @classmethod
     def from_csv(
-        cls, 
-        path: PathLike|str, 
-        tokenizer: PreTrainedTokenizer|str, 
-        text_row: int, 
+        cls,
+        path: PathLike|str,
+        tokenizer: PreTrainedTokenizer|str,
+        text_row: int,
         label_row: int,
         text_b_row: Optional[int] = None,
         max_length: int = 512

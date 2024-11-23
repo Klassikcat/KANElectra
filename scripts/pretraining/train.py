@@ -23,29 +23,28 @@ def main(cfg: DictConfig) -> None:
         datamodule_config=cfg.datamodule
     )
     model = ElectraModel(cfg.nn)
-    callbacks = get_callbacks(cfg.trainer.callbacks)
+    callback_lst = get_callbacks(cfg.trainer.callbacks)
     del cfg.trainer.callbacks
-    trainer = pl.Trainer(**cfg.trainer, callbacks=callbacks)
+    trainer = pl.Trainer(**cfg.trainer, callbacks=callback_lst)
     trainer.fit(model, datamodule=datamodule)
     trainer.test(model, datamodule=datamodule)
-    
 
 def get_callbacks(
     callbacks_config: DictConfig
     ) -> List[pl.Callback]:
-    callbacks = []
-    for config in callbacks_config:
+    callback_lst: List[pl.Callback] = []
+    for config in callbacks_config['callbacks']:
         try:
             callback = getattr(pl.callbacks, config.name)(**config.params)
         except ModuleNotFoundError:
             callback = getattr(callbacks, config.name)(**config.params)
-        callbacks.append(callback)
-    return callbacks
-    
+        callback_lst.append(callback)
+    return callback_lst
+
 
 def get_dataloader(
     tokenizer_path: str,
-    dataset_config: DictConfig, 
+    dataset_config: DictConfig,
     datamodule_config: DictConfig
     ) -> ElectraKANDataModule:
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
@@ -76,4 +75,3 @@ def get_dataloader(
         pin_memory=datamodule_config.pin_memory
     )
     return datamodule
-

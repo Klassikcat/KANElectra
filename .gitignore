@@ -25,3 +25,6 @@ src/ElectraKAN/__pycache__/
 /data/*.tar.gz
 /data/*.json
 /data/*.txt
+.zed_server/
+.ropeproject/
+.mypy_cache/

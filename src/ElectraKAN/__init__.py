@@ -5,8 +5,7 @@ from .callbacks import (
     OnnxCompiler
 )
 from .handlers import (
-    ClassificationHandler,
-    ElectraPretrainingHandler,
+    ElectraModel,
 )
 from .datamodule import (
     ElectraClassificationDataset,
