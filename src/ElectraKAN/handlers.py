@@ -22,11 +22,12 @@ class ElectraModel(pl.LightningModule):
         self.generator = ElectraGenerator(**config.generator)
         self.discriminator = ElectraDiscriminator(**config.discriminator)
         self.config = config
+        self._automatic_optimization = False
 
-        self.accuracy = Accuracy(task='multiclass', num_labels=2)
-        self.precision = Precision(task='multiclass', num_labels=2)
-        self.recall = Recall(task='multiclass', num_labels=2)
-        self.f1 = FBetaScore(task='multiclass', num_labels=2, beta=1.0)
+        self.accuracy = Accuracy(task='multiclass', num_classes=2)
+        self.precision = Precision(task='multiclass', num_classes=2)
+        self.recall = Recall(task='multiclass', num_classes=2)
+        self.f1 = FBetaScore(task='multiclass', num_classes=2, beta=1.0)
 
     def forward(self, input_ids: LongTensor, attention_mask: LongTensor, token_type_ids: LongTensor) -> Tuple[Tensor, Tensor]:
         generator_logits = self.generator(input_ids, attention_mask, token_type_ids)
@@ -42,25 +43,28 @@ class ElectraModel(pl.LightningModule):
         discriminator_logits = self.discriminator(input_ids_with_generated, attention_mask, token_type_ids)
         return generator_logits, discriminator_logits
 
-    def training_step(self, batch: Tuple[LongTensor, LongTensor, LongTensor], batch_idx: int, optimizer_idx: int) -> Tensor:
-        input_ids, attention_mask, token_type_ids = batch
-        generator_logits, discriminator_logits = self(input_ids, attention_mask, token_type_ids)
+    def training_step(self, batch: Tuple[LongTensor, LongTensor, LongTensor], batch_idx: int) -> Tensor:
+        masked_input_ids, attention_mask, token_type_ids, input_ids = batch
+        generator_logits, discriminator_logits = self(masked_input_ids, attention_mask, token_type_ids)
 
-        if optimizer_idx == 0:
-            generator_loss = self.generator_loss(generator_logits, input_ids)
-            self.log('train_generator_loss', generator_loss)
-            return generator_loss
+        generator_optimizer, discriminator_optimizer = self.optimizers()
 
-        elif optimizer_idx == 1:
-            discriminator_loss = self.discriminator_loss(discriminator_logits, input_ids)
-            self.log('train_discriminator_loss', discriminator_loss)
-            return discriminator_loss
-        else:
-            raise ValueError(f'Invalid optimizer index: {optimizer_idx}')
+        generator_loss = self.generator_loss(generator_logits, input_ids)
+        self.log('train_generator_loss', generator_loss)
+        generator_loss.backward()
+        generator_optimizer.step()
+        generator_optimizer.zero_grad()
 
+        discriminator_loss = self.discriminator_loss(discriminator_logits, input_ids)
+        self.log('train_discriminator_loss', discriminator_loss)
+        discriminator_loss.backward()
+        discriminator_optimizer.step()
+        discriminator_optimizer.zero_grad()
+
+    @torch.no_grad()
     def validation_step(self, batch: Tuple[LongTensor, LongTensor, LongTensor], batch_idx: int) -> None:
-        input_ids, attention_mask, token_type_ids = batch
-        generator_logits, discriminator_logits = self(input_ids, attention_mask, token_type_ids)
+        masked_input_ids, attention_mask, token_type_ids, input_ids = batch
+        generator_logits, discriminator_logits = self(masked_input_ids, attention_mask, token_type_ids)
 
         generator_loss = self.generator_loss(generator_logits, input_ids)
         discriminator_loss = self.discriminator_loss(discriminator_logits, input_ids)

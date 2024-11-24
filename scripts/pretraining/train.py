@@ -8,18 +8,21 @@ try:
     from ElectraKAN.handlers import ElectraModel
     from ElectraKAN import callbacks
 except ModuleNotFoundError:
+    import os
     import sys
-    sys.path.append('../')
-    from ElectraKAN.datamodule import ElectraKANDataModule, ElectraPretrainingDataset
-    from ElectraKAN.handlers import ElectraModel
-    from ElectraKAN import callbacks
+    from pathlib import Path
+    PARENT_PATH = str(Path(os.path.abspath(__file__)).parent.parent.parent)
+    sys.path.append(PARENT_PATH)
+    from src.ElectraKAN.datamodule import ElectraKANDataModule, ElectraPretrainingDataset
+    from src.ElectraKAN.handlers import ElectraModel
+    from src.ElectraKAN import callbacks
 
 
-@hydra.main(config_path="../configs", config_name="train")
+@hydra.main(config_path="../../configs", config_name="train")
 def main(cfg: DictConfig) -> None:
     datamodule = get_dataloader(
-        tokenizer_path=cfg.tokenizer_path,
-        dataset_config=cfg.dataset,
+        tokenizer_path=cfg.tokenizer_name,
+        dataset_config=cfg.datasets,
         datamodule_config=cfg.datamodule
     )
     model = ElectraModel(cfg.nn)
@@ -33,7 +36,7 @@ def get_callbacks(
     callbacks_config: DictConfig
     ) -> List[pl.Callback]:
     callback_lst: List[pl.Callback] = []
-    for config in callbacks_config['callbacks']:
+    for config in callbacks_config:
         try:
             callback = getattr(pl.callbacks, config.name)(**config.params)
         except ModuleNotFoundError:
@@ -64,7 +67,7 @@ def get_dataloader(
         path=dataset_config.test.path,
         tokenizer=tokenizer,
         max_length=dataset_config.test.max_length,
-        text_row=dataset_config.cfg.datasets.test.text_row
+        text_row=dataset_config.test.text_row
     )
     datamodule = ElectraKANDataModule(
         train_dataset=train_dataset,
@@ -75,3 +78,7 @@ def get_dataloader(
         pin_memory=datamodule_config.pin_memory
     )
     return datamodule
+
+
+if __name__ == '__main__':
+    main()

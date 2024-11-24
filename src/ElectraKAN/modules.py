@@ -2,9 +2,9 @@ from typing import *
 import math
 import torch
 from torch import (
-    nn, 
-    Tensor, 
-    FloatTensor, 
+    nn,
+    Tensor,
+    FloatTensor,
     LongTensor
 )
 from .kan import KAN
@@ -40,10 +40,10 @@ class ElectraGenerator(nn.Module):
             ff_dim
         )
         self.generator = GeneratorOutput(hidden_dim, vocab_size)
-        
+
     def forward(
-        self, 
-        input_ids: LongTensor, 
+        self,
+        input_ids: LongTensor,
         attention_mask: LongTensor,
         token_type_ids: LongTensor,
     ) -> Tensor:
@@ -51,18 +51,18 @@ class ElectraGenerator(nn.Module):
         seq_out = self.encoder(embeddings, attention_mask)
         dropouted_seq_output = F.dropout(seq_out, p=0.1)
         return self.generator(dropouted_seq_output)
-    
+
 
 class GeneratorOutput(nn.Module):
     def __init__(self, hidden, vocab_size) :
         super().__init__()
         self.linear = nn.Linear(hidden, vocab_size)
         self.softmax = nn.LogSoftmax(dim = -1)
-        
+
     def forward(self, x) :
         return self.softmax(self.linear(x))
-    
-    
+
+
 class ElectraDiscriminator(nn.Module):
     def __init__(
         self,
@@ -93,10 +93,10 @@ class ElectraDiscriminator(nn.Module):
             ff_dim
         )
         self.classifier = KAN(width=[hidden_dim, num_labels])
-        
+
     def forward(
-        self, 
-        input_ids: LongTensor, 
+        self,
+        input_ids: LongTensor,
         attention_mask: LongTensor,
         token_type_ids: LongTensor,
     ) -> Tensor:
@@ -104,7 +104,7 @@ class ElectraDiscriminator(nn.Module):
         seq_out = self.encoder(embeddings, attention_mask)
         dropouted_seq_output = F.dropout(seq_out, p=0.1)
         return self.classifier(dropouted_seq_output)
-    
+
 
 class ElectraEncoder(nn.Module):
     def __init__(
@@ -121,7 +121,7 @@ class ElectraEncoder(nn.Module):
         self.layers = nn.ModuleList([
             EncoderLayer(dim, num_heads, hidden_dim, dropout_p) for i in range(num_layers)
         ])
-        
+
     def forward(
         self,
         hidden_states: Tensor,
@@ -131,7 +131,7 @@ class ElectraEncoder(nn.Module):
             hidden_states = layer(hidden_states, mask)
         return hidden_states
 
-    
+
 class InputEmbedding(nn.Module):
     def __init__(
         self,
@@ -146,16 +146,16 @@ class InputEmbedding(nn.Module):
        self.positional_embedding = nn.Embedding(max_pos_embedding, embedding_dim)
        self.token_type_embedding = nn.Embedding(vocab_type_size, embedding_dim)
        self.dropout = nn.Dropout(embedding_dropout_p)
-   
+
     def forward(
-        self, 
-        input_ids: LongTensor, 
+        self,
+        input_ids: LongTensor,
         token_type_ids: LongTensor,
     ) -> Tensor:
         seq_length = input_ids.shape[1]
         position_ids = torch.arange(seq_length, dtype=torch.long, device=input_ids.device)
         position_ids = position_ids.unsqueeze(0).expand_as(input_ids)
-        
+
         embeddings = (
             self.embedding(input_ids) +
             self.positional_embedding(position_ids) +
@@ -168,20 +168,25 @@ class ScaledDotProductAttention(nn.Module):
     def __init__(self, dropout_p: float):
         super().__init__()
         self.softmax = nn.Softmax(dim=-1)
-        
+
     def forward(
-        self, 
-        query: Tensor, 
+        self,
+        query: Tensor,
         key: Tensor,
         value: Tensor,
-        attention_mask: LongTensor
+        attention_mask: Optional[LongTensor] = None
     ) -> Tensor:
-        multiplied_kv = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(key.shape[-1])
-        masked_attention = multiplied_kv.masked_fill(attention_mask == 0, -1e9)
+        batch_size, n_head, length, d_tensor = query.shape
+        multiplied_kv = torch.matmul(query, key.transpose(2, 3)) / math.sqrt(d_tensor)
+        if attention_mask is not None:
+            broadcased_attention_mask = attention_mask.unsqueeze(1).unsqueeze(2)
+            masked_attention = multiplied_kv.masked_fill(broadcased_attention_mask == 0, -1e9)
+        else:
+            masked_attention = multiplied_kv
         attention = self.softmax(masked_attention)
         return torch.matmul(attention, value)
-        
-        
+
+
 class MultiHeadAttention(nn.Module):
     def __init__(
         self,
@@ -197,25 +202,31 @@ class MultiHeadAttention(nn.Module):
         self.fc_k = KAN(width=[dim, dim])
         self.fc_v = KAN(width=[dim, dim])
         self.fc_out = KAN(width=[dim, dim])
-        self.num_heads = num_heads 
+        self.num_heads = num_heads
         self.dim = dim
-               
+
     def forward(
-        self, 
-        query: Tensor, 
+        self,
+        query: Tensor,
         key: Tensor,
         value: Tensor,
         attention_mask: LongTensor
     ) -> Tensor:
         batch_size = query.size(0)
-        query = self.fc_q(query).view(batch_size, -1, self.num_heads, query.size(-1) // self.num_heads).transpose(1, 2)
-        key = self.fc_k(key).view(batch_size, -1, self.num_heads, key.size(-1) // self.num_heads).transpose(1, 2)
-        value = self.fc_v(value).view(batch_size, -1, self.num_heads, value.size(-1) // self.num_heads).transpose(1, 2)
+        length = query.size(1)
+        dim = query.size(2)
+        d_tensor = dim // self.num_heads
+
+        # split
+        query = self.fc_q(query).view(batch_size, self.num_heads, length, d_tensor)
+        key = self.fc_k(key).view(batch_size, self.num_heads, length, d_tensor)
+        value = self.fc_v(value).view(batch_size, self.num_heads, length, d_tensor)
         attention_output = self.attention(query, key, value, attention_mask)
+        # concat
         attention_output = attention_output.transpose(1, 2).contiguous().view(batch_size, -1, self.num_heads * (self.dim // self.num_heads))
         output = self.fc_out(attention_output)
         return self.dropout(output)
- 
+
 
 class FeedForward(nn.Module):
     def __init__(
@@ -229,9 +240,9 @@ class FeedForward(nn.Module):
         self.relu = nn.ReLU()
         self.fc2 = nn.Linear(ff_dim, dim)
         self.dropout = nn.Dropout(dropout_p)
-        
+
     def forward(
-        self, 
+        self,
         x: Tensor
     ) -> Tensor:
         x = self.fc1(x)
@@ -239,7 +250,7 @@ class FeedForward(nn.Module):
         x = self.fc2(x)
         x = self.dropout(x)
         return x
-    
+
 
 class EncoderLayer(nn.Module):
     def __init__(
@@ -255,10 +266,10 @@ class EncoderLayer(nn.Module):
         self.norm1 = nn.LayerNorm(dim)
         self.norm2 = nn.LayerNorm(dim)
         self.dropout = nn.Dropout(dropout_p)
-        
+
     def forward(
-        self, 
-        x: Tensor, 
+        self,
+        x: Tensor,
         attention_mask: LongTensor
     ) -> Tensor:
         attention_output = self.attn(x, x, x, attention_mask)

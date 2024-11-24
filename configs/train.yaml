@@ -1,62 +1,57 @@
 max_length: 512
 tokenizer_name: "google/electra-base-discriminator"
 datasets:
-  train:
-    path: data/train.csv
-    max_length: ${max_length}
-    text_row: 0
-  val:
-    path: data/val.csv
-    max_length: ${max_length}
-    text_row: 0
-  test:
-    path: data/test.csv
-    max_length: ${max_length}
-    text_row: 0
+    train:
+        path: /workspaces/kanelectra/data/dev-v2.0.txt
+        max_length: ${max_length}
+        text_row: 0
+    val:
+        path: /workspaces/kanelectra/data/dev-v2.0.txt
+        max_length: ${max_length}
+        text_row: 0
+    test:
+        path: /workspaces/kanelectra/data/dev-v2.0.txt
+        max_length: ${max_length}
+        text_row: 0
 datamodule:
-  batch_size: 32
-  num_workers: 4
-  pin_memory: True
+    batch_size: 32
+    num_workers: 4
+    pin_memory: True
 nn:
-  generator:
-    vocab_size: 35000
-    embedding_dim: 768
-    vocab_type_size: 2
-    layernorm_eps: 1e-12
-    embedding_dropout_p: 0.1
-    hidden_dim: 768
-    num_heads: 4,
-    ff_dim: 1024
-    num_layers: 12
-    max_pos_embedding: 512
-  discriminator:
-    vocab_size: 35000
-    num_classes: 1
-    embedding_dim: 768
-    vocab_type_size: 2
-    layernorm_eps: 1e-12
-    embedding_dropout_p: 0.1
-    hidden_dim: 768
-    num_heads: 4,
-    ff_dim: 1024
-    num_layers: 12
-    max_pos_embedding: 512
+    generator_lr: 1e-3
+    discriminator_lr: 1e-3
+    generator:
+        vocab_size: 35000
+        embedding_dim: 768
+        vocab_type_size: 2
+        embedding_dropout_p: 0.1
+        hidden_dim: 768
+        num_heads: 4
+        ff_dim: 1024
+        num_layers: 12
+        max_pos_embedding: 512
+    discriminator:
+        vocab_size: 35000
+        num_labels: 2
+        embedding_dim: 768
+        vocab_type_size: 2
+        embedding_dropout_p: 0.1
+        hidden_dim: 768
+        num_heads: 4
+        ff_dim: 1024
+        num_layers: 12
+        max_pos_embedding: 512
 trainer:
-  accelerator: auto
-  devices: 1
-  max_epochs: 10
-  precision: 32
-  enable_progress_bar: true
-  callbacks: 
-    - name: ModelCheckpoint
-      params:
-        monitor: val_loss
-        mode: min
-        save_top_k: 1
-        dirpath: checkpoints
-        filename: "{epoch}-{val_loss:.2f}"
-    - name: TensorRTCompiler
-      params:
-        
-
-  
+    accelerator: cuda
+    devices: 1
+    max_epochs: 10
+    precision: 32
+    enable_progress_bar: true
+    callbacks:
+        - name: ModelCheckpoint
+          params:
+              monitor: val_loss
+              mode: min
+              save_top_k: 1
+              dirpath: checkpoints
+              filename: "{epoch}-{val_loss:.2f}"

@@ -28,3 +28,6 @@ src/ElectraKAN/__pycache__/
 .zed_server/
 .ropeproject/
 .mypy_cache/
+*/__pycache__/
+*/*/__pycache__/
+outputs/
