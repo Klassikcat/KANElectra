@@ -50,7 +50,7 @@ class ElectraModel(pl.LightningModule):
         generator_optimizer, discriminator_optimizer = self.optimizers()
 
         generator_loss = self.generator_loss(generator_logits, input_ids)
-        self.log('train_generator_loss', generator_loss, on_step=True)
+        self.log('train_generator_loss', generator_loss, on_step=True, on_epoch=True, prog_bar=True)
         generator_loss.backward()
         generator_optimizer.step()
         generator_optimizer.zero_grad()
@@ -59,7 +59,7 @@ class ElectraModel(pl.LightningModule):
         generated_labels = self.create_discriminator_labels(input_ids, discriminator_token_ids)
 
         discriminator_loss = self.discriminator_loss(discriminator_logits, generated_labels)
-        self.log('train_discriminator_loss', discriminator_loss, on_step=True)
+        self.log('train_discriminator_loss', discriminator_loss, on_step=True, on_epoch=True, prog_bar=True)
         discriminator_loss.backward()
         discriminator_optimizer.step()
         discriminator_optimizer.zero_grad()
@@ -76,14 +76,14 @@ class ElectraModel(pl.LightningModule):
 
         discriminator_loss = self.discriminator_loss(discriminator_logits, generated_labels)
 
-        self.log('val_generator_loss', generator_loss, on_step=True)
-        self.log('val_discriminator_loss', discriminator_loss, on_step=True)
+        self.log('val_generator_loss', generator_loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log('val_discriminator_loss', discriminator_loss, on_step=True, on_epoch=True, prog_bar=True)
 
         preds = torch.argmax(discriminator_logits, dim=-1)
         self.log('val_accuracy', self.accuracy(preds, generated_labels), on_epoch=True)
         self.log('val_precision', self.precision(preds, generated_labels), on_epoch=True)
         self.log('val_recall', self.recall(preds, generated_labels), on_epoch=True)
-        self.log('val_f1', self.f1(preds, generated_labels), on_epoch=True)
+        self.log('val_f1', self.f1(preds, generated_labels), on_epoch=True, prog_bar=True)
 
     def configure_optimizers(self) -> Tuple[List[torch.optim.Optimizer], List[Any]]:
         generator_optimizer = torch.optim.Adam(self.generator.parameters(), lr=self.config.generator_lr)
