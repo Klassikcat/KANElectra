@@ -20,6 +20,7 @@ datamodule:
 nn:
     generator_lr: 1e-3
     discriminator_lr: 1e-3
+    mask_token_id: 103 # [MASK] token of google/electra-base-discriminator
     generator:
         vocab_size: 35000
         embedding_dim: 768
@@ -42,8 +43,8 @@ nn:
         num_layers: 12
         max_pos_embedding: 512
 trainer:
-    accelerator: cuda
-    devices: 1
+    accelerator: cpu
+    devices: auto
     max_epochs: 10
     precision: 32
     enable_progress_bar: true

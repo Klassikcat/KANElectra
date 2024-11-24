@@ -1,23 +1,25 @@
 {
-  "name": "CUDA",
-  "image": "glcr.b-data.ch/jupyterlab/cuda/python/base:3-devtools-docker-root", 
-  "runArgs": [
-    "--gpus=all",
-    "-e NB_USER=root",
-    "-e NB_UID=0",
-    "-e NB_GID=0",
-    "-e NOTEBOOK_ARGS='--allow-root'",
-    "-e GRANT_SUDO=yes"
-  ],
-  "settings": {
-    "terminal.integrated.shell.linux": "/bin/bash"
-  },
-  "remoteEnv": {
-    "PATH": "${containerEnv:PATH}:/usr/local/cuda/bin",
-    "LD_LIBRARY_PATH": "$LD_LIBRARY_PATH:/usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64",
-    "XLA_FLAGS": "--xla_gpu_cuda_data_dir=/usr/local/cuda"
-  },
-  "postCreateCommand": [
-    "nvidia-smi"
-  ]
+    "name": "CUDA",
+    "image": "glcr.b-data.ch/jupyterlab/cuda/python/base:3-devtools-docker-root",
+    "runArgs": [
+        "--gpus=all",
+        "-e NB_USER=root",
+        "-e NB_UID=0",
+        "-e NB_GID=0",
+        "-e NOTEBOOK_ARGS='--allow-root'",
+        "-e GRANT_SUDO=yes"
+    ],
+    "settings": {
+        "terminal.integrated.shell.linux": "/bin/bash"
+    },
+    "remoteEnv": {
+        "PATH": "${containerEnv:PATH}:/usr/local/cuda/bin",
+        "LD_LIBRARY_PATH": "$LD_LIBRARY_PATH:/usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64",
+        "XLA_FLAGS": "--xla_gpu_cuda_data_dir=/usr/local/cuda"
+    },
+    "postCreateCommand": [
+        "nvidia-smi",
+        "wget -P ./data https://rajpurkar.github.io/SQuAD-explorer/dataset/train-v2.0.json",
+        "wget -P ./data https://rajpurkar.github.io/SQuAD-explorer/dataset/dev-v2.0.json"
+    ]
 }

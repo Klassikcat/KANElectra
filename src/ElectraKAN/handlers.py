@@ -55,7 +55,10 @@ class ElectraModel(pl.LightningModule):
         generator_optimizer.step()
         generator_optimizer.zero_grad()
 
-        discriminator_loss = self.discriminator_loss(discriminator_logits, input_ids)
+        discriminator_token_ids = torch.argmax(discriminator_logits, dim=-1)
+        generated_labels = self.create_discriminator_labels(input_ids, discriminator_token_ids)
+
+        discriminator_loss = self.discriminator_loss(discriminator_logits, generated_labels)
         self.log('train_discriminator_loss', discriminator_loss)
         discriminator_loss.backward()
         discriminator_optimizer.step()
@@ -67,16 +70,20 @@ class ElectraModel(pl.LightningModule):
         generator_logits, discriminator_logits = self(masked_input_ids, attention_mask, token_type_ids)
 
         generator_loss = self.generator_loss(generator_logits, input_ids)
-        discriminator_loss = self.discriminator_loss(discriminator_logits, input_ids)
+
+        discriminator_token_ids = torch.argmax(discriminator_logits, dim=-1)
+        generated_labels = self.create_discriminator_labels(input_ids, discriminator_token_ids)
+
+        discriminator_loss = self.discriminator_loss(discriminator_logits, generated_labels)
 
         self.log('val_generator_loss', generator_loss)
         self.log('val_discriminator_loss', discriminator_loss)
 
-        preds = torch.argmax(discriminator_logits, dim=1)
-        self.log('val_accuracy', self.accuracy(preds, input_ids))
-        self.log('val_precision', self.precision(preds, input_ids))
-        self.log('val_recall', self.recall(preds, input_ids))
-        self.log('val_f1', self.f1(preds, input_ids))
+        preds = torch.argmax(discriminator_logits, dim=-1)
+        self.log('val_accuracy', self.accuracy(preds, generated_labels))
+        self.log('val_precision', self.precision(preds, generated_labels))
+        self.log('val_recall', self.recall(preds, generated_labels))
+        self.log('val_f1', self.f1(preds, generated_labels))
 
     def configure_optimizers(self) -> Tuple[List[torch.optim.Optimizer], List[Any]]:
         generator_optimizer = torch.optim.Adam(self.generator.parameters(), lr=self.config.generator_lr)
@@ -90,8 +97,7 @@ class ElectraModel(pl.LightningModule):
         labels_for_masked = input_ids[mask_token_indices]
         return F.cross_entropy(logits_for_masked, labels_for_masked)
 
-    def discriminator_loss(self, discriminator_logits: LongTensor, input_ids: LongTensor) -> Tensor:
-        generated_labels = self.create_discriminator_labels(input_ids, discriminator_logits)
+    def discriminator_loss(self, discriminator_logits: LongTensor, generated_labels: Tensor|LongTensor) -> Tensor:
         return F.cross_entropy(discriminator_logits.view(-1, 2), generated_labels.view(-1))
 
     def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
@@ -102,7 +108,7 @@ class ElectraModel(pl.LightningModule):
         self.generator.load_state_dict(checkpoint['generator_state_dict'])
         self.discriminator.load_state_dict(checkpoint['discriminator_state_dict'])
 
-    def create_discriminator_labels(self, input_ids: LongTensor, generated_logits: LongTensor) -> torch.Tensor:
+    def create_discriminator_labels(self, input_ids: LongTensor, generated_logits: Tensor|LongTensor) -> torch.Tensor:
         # Compare original and generated logits
         labels = (input_ids != generated_logits).long()
         return labels
