@@ -2,19 +2,19 @@ max_length: 512
 tokenizer_name: "google/electra-base-discriminator"
 datasets:
     train:
-        path: /workspaces/kanelectra/data/dev-v2.0.txt
+        path: /workspaces/https---github-com-klassikcat-kanelectra/data/dev.txt
         max_length: ${max_length}
         text_row: 0
     val:
-        path: /workspaces/kanelectra/data/dev-v2.0.txt
+        path: /workspaces/https---github-com-klassikcat-kanelectra/data/dev.txt
         max_length: ${max_length}
         text_row: 0
     test:
-        path: /workspaces/kanelectra/data/dev-v2.0.txt
+        path: /workspaces/https---github-com-klassikcat-kanelectra/data/dev.txt
         max_length: ${max_length}
         text_row: 0
 datamodule:
-    batch_size: 32
+    batch_size: 8
     num_workers: 4
     pin_memory: True
 nn:
@@ -43,8 +43,8 @@ nn:
         num_layers: 12
         max_pos_embedding: 512
 trainer:
-    accelerator: cpu
-    devices: auto
+    accelerator: auto
+    devices: 8
     max_epochs: 10
     precision: 32
     enable_progress_bar: true
