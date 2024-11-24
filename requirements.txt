@@ -1,0 +1,9 @@
+torch
+lightning
+hydra-core
+ruamel.yaml
+omegaconf
+torchmetrics
+transformers
+ujson
+uv

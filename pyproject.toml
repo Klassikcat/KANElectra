@@ -5,8 +5,8 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry]
 name = "ElectraKAN"
 version = "0.1.0"
-description = "Your project description"
-authors = ["Your Name <your.email@example.com>"]
+description = "ElectraKAN is Electra model using KAN model insteand of Fully Connected Layer."
+authors = ["shin jung tae (shinjeongtae@gmail.com)"]
 
 [tool.poetry.dependencies]
 python = "^3.8"
