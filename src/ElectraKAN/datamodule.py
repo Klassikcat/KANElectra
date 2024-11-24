@@ -78,7 +78,7 @@ class ElectraPretrainingDataset(Dataset):
         if masked_indices[0] == True:
             masked_indices[0] = False
         padded_masked_indices: torch.Tensor = F.pad(masked_indices, mode='constant', value=False, pad=(self.max_length - end_of_token, 0))
-        tokens_to_be_masked = torch.where(padded_masked_indices, True, tokens_to_be_masked)
+        tokens_to_be_masked = torch.where(padded_masked_indices == True, self.tokenizer.mask_token_id, tokens_to_be_masked)
         return tokens_to_be_masked
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.LongTensor, torch.Tensor]:

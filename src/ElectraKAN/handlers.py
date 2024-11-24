@@ -29,6 +29,10 @@ class ElectraModel(pl.LightningModule):
         self.recall = Recall(task='multiclass', num_classes=2)
         self.f1 = FBetaScore(task='multiclass', num_classes=2, beta=1.0)
 
+    def locate_mask(self, input_ids: Tensor) -> Tensor:
+        return input_ids == self.config.mask_token_id
+
+
     def forward(self, input_ids: LongTensor, attention_mask: LongTensor, token_type_ids: LongTensor) -> Tuple[Tensor, Tensor]:
         generator_logits = self.generator(input_ids, attention_mask, token_type_ids)
         # Sample new tokens based on generator logits
@@ -49,7 +53,8 @@ class ElectraModel(pl.LightningModule):
 
         generator_optimizer, discriminator_optimizer = self.optimizers()
 
-        generator_loss = self.generator_loss(generator_logits, input_ids)
+        mask_token_indices = self.locate_mask(masked_input_ids)
+        generator_loss = self.generator_loss(generator_logits, input_ids, mask_token_indices)
         self.log('train_generator_loss', generator_loss, on_step=True, on_epoch=True, prog_bar=True)
         generator_loss.backward()
         generator_optimizer.step()
@@ -64,12 +69,19 @@ class ElectraModel(pl.LightningModule):
         discriminator_optimizer.step()
         discriminator_optimizer.zero_grad()
 
+        preds = torch.argmax(discriminator_logits, dim=-1)
+        self.log('train_accuracy', self.accuracy(preds, generated_labels), on_epoch=True)
+        self.log('train_precision', self.precision(preds, generated_labels), on_epoch=True)
+        self.log('train_recall', self.recall(preds, generated_labels), on_epoch=True)
+        self.log('train_f1', self.f1(preds, generated_labels), on_epoch=True, prog_bar=True, on_step=True)
+
     @torch.no_grad()
     def validation_step(self, batch: Tuple[LongTensor, LongTensor, LongTensor], batch_idx: int) -> None:
         masked_input_ids, attention_mask, token_type_ids, input_ids = batch
         generator_logits, discriminator_logits = self(masked_input_ids, attention_mask, token_type_ids)
 
-        generator_loss = self.generator_loss(generator_logits, input_ids)
+        mask_token_indices = self.locate_mask(masked_input_ids)
+        generator_loss = self.generator_loss(generator_logits, input_ids, mask_token_indices)
 
         discriminator_token_ids = torch.argmax(discriminator_logits, dim=-1)
         generated_labels = self.create_discriminator_labels(input_ids, discriminator_token_ids)
@@ -90,9 +102,8 @@ class ElectraModel(pl.LightningModule):
         discriminator_optimizer = torch.optim.Adam(self.discriminator.parameters(), lr=self.config.discriminator_lr)
         return [generator_optimizer, discriminator_optimizer], []
 
-    def generator_loss(self, generator_logits: LongTensor, input_ids: LongTensor) -> Tensor:
+    def generator_loss(self, generator_logits: LongTensor, input_ids: LongTensor, mask_token_indices: Tensor) -> Tensor:
         # Only calculate loss for masked tokens
-        mask_token_indices = input_ids == self.config.mask_token_id
         logits_for_masked = generator_logits[mask_token_indices]
         labels_for_masked = input_ids[mask_token_indices]
         return F.cross_entropy(logits_for_masked, labels_for_masked)
