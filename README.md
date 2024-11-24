@@ -17,7 +17,7 @@ Once the model training is complete, a download link will be provided on Hugging
 
 ## About KAN Electra
 
-<img src="https://www.researchgate.net/profile/Haein-Lee-17/publication/380213289/figure/fig5/AS:11431281239908417@1714537841924/ELECTRA-model-architecture-Source-Adapted-from-22-25.png">
+![KAN Electra Model](static/electra.png)
 
 KAN Electra replaces the fully connected layers in a typical Transformer Encoder model with Kolmogorov–Arnold Networks (KANs). This modification aims to leverage the speed and performance benefits of KANs to enhance the efficiency and effectiveness of the Transformer Encoder.
 
