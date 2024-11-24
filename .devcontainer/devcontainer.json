@@ -18,8 +18,6 @@
         "XLA_FLAGS": "--xla_gpu_cuda_data_dir=/usr/local/cuda"
     },
     "postCreateCommand": [
-        "nvidia-smi",
-        "wget -P ./data https://rajpurkar.github.io/SQuAD-explorer/dataset/train-v2.0.json",
-        "wget -P ./data https://rajpurkar.github.io/SQuAD-explorer/dataset/dev-v2.0.json"
+        "nvidia-smi"
     ]
 }
