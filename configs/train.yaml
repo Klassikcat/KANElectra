@@ -14,7 +14,7 @@ datasets:
         max_length: ${max_length}
         text_row: 0
 datamodule:
-    batch_size: 8
+    batch_size: 1
     num_workers: 4
     pin_memory: True
 nn:
@@ -44,8 +44,9 @@ nn:
         max_pos_embedding: 512
 trainer:
     accelerator: auto
-    devices: 8
+    devices: 3
     max_epochs: 10
+    strategy: ddp
     precision: 32
     enable_progress_bar: true
     callbacks:
