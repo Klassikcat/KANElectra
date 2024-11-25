@@ -6,7 +6,7 @@ Recently, Kolmogorov–Arnold Networks (KANs) have been introduced as a replacem
 According to the authors of the paper, KANs have a significant advantage in terms of speed and performance compared to traditional FC layers.
 
 They are currently being actively applied in vision-based models and were recently applied to Transformer decoder models as well.
-It has been reported that this has resulted in a substantial improvement in performance.
+It has been reported that this has resulted in a substantial improvement in both performance and throuthput side.
 
 Despite the verification of KANs' performance in various areas, I have not yet found examples of their application to the Transformer encoder part.
 In this repository, we aim to verify whether KANs can be applied to Transformer encoder models and to evaluate their performance.
