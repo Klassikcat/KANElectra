@@ -6,4 +6,3 @@ omegaconf
 torchmetrics
 transformers
 ujson
-uv
