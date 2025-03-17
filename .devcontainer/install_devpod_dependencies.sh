@@ -16,7 +16,7 @@ install_apt_requirements() {
 install_python_requirements() {
     local requirements_path=${1:-"requirements.txt"}
     local package_manager=${2:-"uv"}
-    if [ "$package_manager" == "uv" ]; then
+    if [ "$package_manager"=="uv" ]; then   # zsh
         pip install uv
         package_manager="uv pip"
         /bin/bash -c "$package_manager install -r $requirements_path --system"
@@ -30,3 +30,5 @@ main() {
     install_python_requirements "requirements.txt" "uv"
     nvidia-smi
 }
+
+main
