@@ -16,6 +16,8 @@ install_apt_requirements() {
 install_python_requirements() {
     local requirements_path=${1:-"requirements.txt"}
     local package_manager=${2:-"uv"}
+    python3 -m venv .venv
+    . .venv/bin/activate
     if [ "$package_manager"=="uv" ]; then   # zsh
         pip install uv
         package_manager="uv pip"
