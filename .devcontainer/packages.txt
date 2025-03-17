@@ -4,3 +4,4 @@ python3-venv
 python3-dev
 git
 gh
+vim
