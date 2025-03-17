@@ -1,6 +1,6 @@
 {
     "name": "CUDA",
-    "image": "nvidia/cuda:12.3.0-devel-ubuntu22.04",
+    "image": "glcr.b-data.ch/jupyterlab/cuda/python/base:3-devtools-docker-root",
     "runArgs": [
         "--gpus=all",
         "-e NB_USER=root",
