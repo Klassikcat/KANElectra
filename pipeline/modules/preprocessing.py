@@ -37,5 +37,16 @@ def split_sentences(text: str) -> list[str]:
     return result
 
 
-def tokenize_sentences(sentences: List[str], tokenizer: AutoTokenizer) -> List[List[int]]:
-    return [tokenizer(sentence, return_tensors="pt", padding=True, truncation=True)["input_ids"] for sentence in sentences]
+def tokenize_sentences(sentences: List[str], tokenizer: AutoTokenizer, max_length: int = 512) -> List[List[int]]:
+    return [
+        tokenizer(
+            sentence, 
+            padding=True, 
+            truncation=True,
+            max_length=max_length,
+            return_attention_mask=True,
+            return_token_type_ids=True,
+            return_tensors="pt",
+        )["input_ids"] 
+        for sentence in sentences
+    ]
