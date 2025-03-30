@@ -46,38 +46,38 @@ def _():
         """문장의 경계인지 판단합니다."""
         if char != '.' or next_char not in [' ', '\n']:
             return False
-        
+
         words = current_sentence.strip().split()
         if not words:
             return False
-        
+
         return not is_title(words[-1], titles)
 
 
     def split_sentences(text: str) -> list[str]:
         """텍스트를 문장 단위로 분리합니다."""
         titles = ['mr', 'mrs', 'ms', 'miss', 'dr', 'prof', 'rev', 'hon']
-    
+
         result = []
         current = ""
-    
+
         for i, char in enumerate(text):
             current += char
-        
+
             if i + 1 < len(text) and is_sentence_boundary(char, text[i + 1], current, titles):
                 result.append(current.strip())
                 current = ""
-            
+
         if current.strip():
             result.append(current.strip())
-        
+
         return result
-    
+
     # 테스트
     text = "안녕하세요. Mr. Smith는 의사입니다.\n그의 메일은 mr.smith@gmail.com 입니다. Dr. Lee와 Prof. Kim이 왔어요. 그리고 Mrs. Park도 왔습니다."
     sentences = split_sentences(text)
     for sentence in sentences:
-        print(sentence) 
+        print(sentence)
     return (
         is_sentence_boundary,
         is_title,
@@ -125,6 +125,17 @@ def _(result):
 def _(datasets_us):
     datasets_us
     return
+
+
+@app.cell
+def _():
+    import sys
+    sys.path.append("/workspaces/kanelectra")
+    from pipeline.modules import PretrainingDataset
+
+
+
+    return PretrainingDataset, sys
 
 
 if __name__ == "__main__":

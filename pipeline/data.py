@@ -78,30 +78,3 @@ def download_data(dataset_name: str, version: str, split: Tuple[int, int], langu
     except Exception as e:
         raise ValueError(f"An error occurred while downloading the dataset: {e}")
     return dataset
-
-
-@task(cache=True, cache_version="1.0", limits=Resources(cpu="2", mem="16Gi"))
-def merge_flyte_files(files: List[FlyteFile]) -> FlyteFile:
-    """
-    여러 FlyteFile을 하나로 합칩니다.
-    
-    Args:
-        files: 합칠 FlyteFile들의 리스트
-    
-    Returns:
-        FlyteFile: 합쳐진 파일
-    """
-    with tempfile.NamedTemporaryFile(suffix='.json', delete=False) as output_file:
-        with open(output_file.name, 'w', encoding='utf-8') as out_f:
-            out_f.write('[')  # JSON 배열 시작
-            for i, file in enumerate(files):
-                with open(file, 'r', encoding='utf-8') as in_f:
-                    content = in_f.read().strip()
-                    if content.startswith('[') and content.endswith(']'):
-                        content = content[1:-1]  # 대괄호 제거
-                    out_f.write(content)
-                    if i < len(files) - 1:  # 마지막 파일이 아니면 쉼표 추가
-                        out_f.write(',')
-            out_f.write(']')  # JSON 배열 종료
-        return FlyteFile(output_file.name)
-
