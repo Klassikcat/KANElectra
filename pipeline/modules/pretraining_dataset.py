@@ -1,3 +1,4 @@
+import torch
 from flytekit import FlyteFile
 from typing import List, Iterator, Dict, Any, Optional
 from torch.utils.data import Dataset
@@ -187,13 +188,46 @@ class PretrainingDataset(Dataset):
             max_length=self.max_length,
             padding='max_length',
             truncation=True,
+            return_attention_mask=True,
+            return_token_type_ids=True,
             return_tensors='pt'
         )
         
         return {
             'input_ids': encoding['input_ids'].squeeze(),
-            'attention_mask': encoding['attention_mask'].squeeze()
+            'attention_mask': encoding['attention_mask'].squeeze(),
+            'token_type_ids': encoding['token_type_ids'].squeeze(),
+            'masked_input_ids': self._mask_tokens(encoding['input_ids'].squeeze())
         }
+
+    def _mask_tokens(self, input_ids: torch.Tensor) -> torch.Tensor:
+        """RoBERTa style dynamic masking"""
+        labels = input_ids.clone()
+        probability_matrix = torch.full(labels.shape, 0.15)
+        
+        # 스페셜 토큰 마스킹 방지
+        special_tokens_mask = [
+            self.tokenizer.get_special_tokens_mask(val, already_has_special_tokens=True)
+            for val in labels.tolist()
+        ]
+        probability_matrix.masked_fill_(torch.tensor(special_tokens_mask, dtype=torch.bool), value=0.0)
+        
+        # 마스킹할 위치 선택
+        masked_indices = torch.bernoulli(probability_matrix).bool()
+        labels[~masked_indices] = -100  # 마스킹되지 않은 토큰은 -100으로 설정
+        
+        # 마스킹된 토큰의 80%는 [MASK]로 대체
+        indices_mask = torch.bernoulli(torch.full(labels.shape, 0.8)).bool() & masked_indices
+        input_ids[indices_mask] = self.tokenizer.mask_token_id
+        
+        # 마스킹된 토큰의 10%는 랜덤 토큰으로 대체
+        random_words = torch.randint(len(self.tokenizer), labels.shape, dtype=torch.long)
+        indices_random = torch.bernoulli(torch.full(labels.shape, 0.5)).bool() & masked_indices & ~indices_mask
+        input_ids[indices_random] = random_words[indices_random]
+        
+        # 나머지 10%는 원래 토큰 유지
+        
+        return input_ids
 
     def _stream_json_objects(self, file_obj) -> Iterator[str]:
         """
