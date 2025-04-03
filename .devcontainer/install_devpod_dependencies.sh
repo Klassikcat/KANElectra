@@ -29,7 +29,7 @@ install_python_requirements() {
 
 main() {
     install_apt_requirements "packages.txt"
-    install_python_requirements "requirements.txt" "uv"
+    install_python_requirements "requirements.txt" "pip"
     nvidia-smi
 }
 
