@@ -59,6 +59,39 @@ transformers
 
 ElectraKAN uses Hydra from Meta Inc to simplify configuring parameters and Easy-to-plug parameters in CLI. You can train ElectraKAN with your own code by using Hydra's own syntax here ss an example of training Electra Language model using generator and discriminator.
 
+
+#### Train using Helm Charts
+
+```shell
+# Run training with default configuration
+helm install electra-training ./helm/electra-training
+
+# Run training with specific image tag
+helm install electra-training ./helm/electra-training --set image.tag=v1.0.0
+
+# Run training with custom configuration
+helm install electra-training ./helm/electra-training -f custom-values.yaml
+
+# Uninstall training job
+helm uninstall electra-training
+```
+
+The Helm chart uses the following resources:
+- CPU: 8 vCPU
+- GPU: 4 GPUs
+- Memory: 8Gi (request) / 16Gi (limit)
+- Node: Scheduled on nodes with label env=batch
+
+#### Docker
+
+```shell
+git clone https://github.com/Klassikcat/KANElectra
+docker buildx build -t kanelectra:latest -f nvidia.Dockerfile .
+docker run <image-name>
+```
+
+#### On Local Machine
+
 ```shell
 python scripts/pretraining/train.py
 ```
@@ -67,7 +100,6 @@ python scripts/pretraining/train.py
 
 ```shell
 python scripts/pretraining/test.py
-
 ```
 
 ## TensorRT Convert
@@ -79,4 +111,21 @@ trtexec \
     --minShape=1x512,1x512,1x512 \
     --optShape=${opt_batch_size}x512,${opt_batch_size}x512,${opt_batch_size}x512 \
     --maxShape=${max_batch_size}x512,${max_batch_size}x512,${max_batch_size}x512
+```
+
+#### Install Package
+
+```shell
+# Install from source
+pip install -e .
+
+# Install with development dependencies
+pip install -e ".[dev]"
+```
+
+After installation, you can use ElectraKAN in your Python code:
+
+```python
+from ElectraKAN import ElectraModel
+from ElectraKAN.datamodule import ElectraKANDataModule
 ```

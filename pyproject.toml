@@ -1,19 +1,58 @@
+[project]
+name = "electrakan"
+version = "0.1.0"
+description = "ElectraKAN is Electra model using KAN model instead of Fully Connected Layer"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [
+    {name = "shin jung tae", email = "shinjeongtae@gmail.com"}
+]
+dependencies = [
+    "torch>=2.5.1",
+    "lightning>=2.3.1",
+    "hydra-core>=1.3.2",
+    "ruamel.yaml>=0.18.3",
+    "omegaconf>=2.3.0",
+    "torchmetrics>=1.1.1",
+    "transformers>=4.45.2",
+    "ujson>=5.7.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "neuronx-cc",
+    "torch-neuronx"
+]
+
 [build-system]
 requires = ["setuptools", "wheel", "poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
-name = "ElectraKAN"
+name = "electrakan"
 version = "0.1.0"
-description = "ElectraKAN is Electra model using KAN model insteand of Fully Connected Layer."
-authors = ["shin jung tae (shinjeongtae@gmail.com)"]
+description = "ElectraKAN is Electra model using KAN model instead of Fully Connected Layer"
+authors = ["shin jung tae <shinjeongtae@gmail.com>"]
+packages = [
+    { include = "ElectraKAN", from = "src" }
+]
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.12"
+torch = ">=2.5.1"
+lightning = ">=2.3.1"
+hydra-core = ">=1.3.2"
+ruamel-yaml = ">=0.18.3"
+omegaconf = ">=2.3.0"
+torchmetrics = ">=1.1.1"
+transformers = ">=4.45.2"
+ujson = ">=5.7.0"
 
-[tool.poetry.dev-dependencies]
-pytest = "^6.2.4"
+[tool.poetry.group.dev.dependencies]
+pytest = "*"
+neuronx-cc = "*"
+torch-neuronx = "*"
 
-[tool.setuptools.packages.find]
-where = ["src"]
-include = ["ElectraKAN"]
+[tool.poetry.scripts]
+train = "ElectraKAN.train:main"

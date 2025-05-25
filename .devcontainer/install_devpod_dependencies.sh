@@ -2,35 +2,25 @@
 
 set -e -u -o pipefail
 
-install_apt_requirements() {
-    local packages_path=$1
-    if ! command -v sudo > /dev/null 2>&1; then
-        echo "sudo is not available. Install mock sudo command"
-        apt-get install sudo
-    fi
+arch=$(uname -m)
+if [ "$arch" = "x86_64" ]; then
+    architecture="amd64"
+elif [ "$arch" = "aarch64" ] || [ "$arch" = "arm64" ]; then
+    architecture="arm64"
+else
+    echo "Your CPU architecture is not supported. exit."
+    exit 1
+fi
 
-    sudo apt-get update
-    sudo apt-get install -y $(cat ./.devcontainer/$1)
-}
+curl "https://awscli.amazonaws.com/awscli-exe-linux-$architecture.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+./aws/install
+rm awscliv2.zip
+rm -rf aws
 
-install_python_requirements() {
-    local requirements_path=${1:-"requirements.txt"}
-    local package_manager=${2:-"uv"}
-    python3 -m venv .venv
-    . .venv/bin/activate
-    if [ "$package_manager"=="uv" ]; then   # zsh
-        pip install uv
-        package_manager="uv pip"
-        /bin/bash -c "$package_manager install -r $requirements_path --system"
-    else
-        /bin/bash -c "$package_manager install -r $requirements_path"
-    fi
-}
+git config --global core.editor 'vim'
+echo 'export EDITOR=vim' >> ~/.bashrc
+echo 'export VISUAL=vim' >> ~/.bashrc
+. $HOME/.bashrc
 
-main() {
-    install_apt_requirements "packages.txt"
-    install_python_requirements "requirements.txt" "pip"
-    nvidia-smi
-}
-
-main
+nvidia-smi

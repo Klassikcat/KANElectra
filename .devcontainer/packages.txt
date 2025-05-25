@@ -5,3 +5,7 @@ python3-dev
 git
 gh
 vim
+apt-transport-https
+ca-certificates
+curl
+g++
