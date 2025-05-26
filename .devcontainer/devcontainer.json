@@ -1,9 +1,6 @@
 {
     "name": "ElectraKAN-Nvidia-DevContainer",
-    "build": {
-        "dockerfile": "nvidia.Dockerfile",
-        "context": ".."
-    },
+    "image": "glcr.b-data.ch/jupyterlab/cuda/python/base:3-devtools-docker-root",
     "runArgs": [
         "--gpus=all",
         "-e NB_USER=root",
