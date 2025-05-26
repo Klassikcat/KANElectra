@@ -2,6 +2,7 @@
 
 set -e -u -o pipefail
 
+apt-get update && apt-get install -y $(cat .devcontainer/packages.txt)
 pip install uv && uv sync
 
 arch=$(uname -m)
@@ -17,7 +18,7 @@ fi
 # Install kubernetes client
 apt-get update
 # apt-transport-https may be a dummy package; if so, you can skip that package
-apt-get install -y apt-transport-https ca-certificates curl gnupg
+apt-get install -y 
 curl -fsSLo /etc/apt/keyrings/kubernetes-archive-keyring.gpg https://packages.cloud.google.com/apt/doc/apt-key.gpg
 echo "deb [signed-by=/etc/apt/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | tee /etc/apt/sources.list.d/kubernetes.list
 apt-get update && apt-get install -y kubectl
@@ -28,7 +29,3 @@ chmod 700 get_helm.sh
 rm get_helm.sh
 
 git config --global core.editor 'vim'
-echo 'export EDITOR=vim' >> ~/.bashrc
-echo 'export VISUAL=vim' >> ~/.bashrc
-HOME=${HOME:-/root}
-. "$HOME/.bashrc"
