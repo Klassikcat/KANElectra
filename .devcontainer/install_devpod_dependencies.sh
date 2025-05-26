@@ -30,5 +30,5 @@ rm get_helm.sh
 git config --global core.editor 'vim'
 echo 'export EDITOR=vim' >> ~/.bashrc
 echo 'export VISUAL=vim' >> ~/.bashrc
-. $HOME/.bashrc
-
+HOME=${HOME:-/root}
+. "$HOME/.bashrc"
