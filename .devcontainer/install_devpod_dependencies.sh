@@ -15,12 +15,12 @@ else
 fi
 
 # Install kubernetes client
-sudo apt-get update
+apt-get update
 # apt-transport-https may be a dummy package; if so, you can skip that package
-sudo apt-get install -y apt-transport-https ca-certificates curl gnupg
+apt-get install -y apt-transport-https ca-certificates curl gnupg
 curl -fsSLo /etc/apt/keyrings/kubernetes-archive-keyring.gpg https://packages.cloud.google.com/apt/doc/apt-key.gpg
 echo "deb [signed-by=/etc/apt/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | tee /etc/apt/sources.list.d/kubernetes.list
-apt-get install -y kubectl
+apt-get update && apt-get install -y kubectl
 
 curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 && \
 chmod 700 get_helm.sh && \
