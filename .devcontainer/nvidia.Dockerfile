@@ -1,7 +1,19 @@
 FROM glcr.b-data.ch/jupyterlab/cuda/python/base:3-devtools-docker-root
 
 # install packages
-RUN apt-get update && apt-get install -y $(cat ./.devcontainer/packages.txt)
+RUN apt-get update && apt-get install -y \
+        python3 \
+        python3-pip \
+        python3-venv \
+        python3-dev \
+        git \
+        gh \
+        vim \
+        apt-transport-https \
+        ca-certificates \
+        curl \
+        g++
+
 RUN pip install uv && uv sync
 
 # Install kubernetes client
