@@ -27,12 +27,6 @@ chmod 700 get_helm.sh && \
 ./get_helm.sh && \
 rm get_helm.sh
 
-curl "https://awscli.amazonaws.com/awscli-exe-linux-$architecture.zip" -o "awscliv2.zip"
-unzip awscliv2.zip
-./aws/install
-rm awscliv2.zip
-rm -rf aws
-
 git config --global core.editor 'vim'
 echo 'export EDITOR=vim' >> ~/.bashrc
 echo 'export VISUAL=vim' >> ~/.bashrc
