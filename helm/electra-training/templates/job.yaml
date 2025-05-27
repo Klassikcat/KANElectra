@@ -25,5 +25,6 @@ spec:
       - name: data
         emptyDir: {}
       - name: outputs
-        emptyDir: {}
+        persistentVolumeClaim:
+          claimName: checkpoints-klassikcat
       restartPolicy: Never 
