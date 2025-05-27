@@ -23,9 +23,7 @@ spec:
           mountPath: /outputs
       volumes:
       - name: data
-        persistentVolumeClaim:
-          claimName: data-pvc
+        emptyDir: {}
       - name: outputs
-        persistentVolumeClaim:
-          claimName: outputs-pvc
+        emptyDir: {}
       restartPolicy: Never 
