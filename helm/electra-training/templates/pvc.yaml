@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: checkpoints-klassikcat
+  name: checkpoints-kanelectra
   annotations:
     "helm.sh/hook": "pre-install"
     "helm.sh/hook-weight": "-10"

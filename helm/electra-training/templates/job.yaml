@@ -26,5 +26,5 @@ spec:
         emptyDir: {}
       - name: outputs
         persistentVolumeClaim:
-          claimName: checkpoints-klassikcat
+          claimName: checkpoints-kanelectra
       restartPolicy: Never 
