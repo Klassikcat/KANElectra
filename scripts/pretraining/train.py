@@ -3,6 +3,7 @@ from transformers import AutoTokenizer
 from omegaconf import DictConfig
 from typing import List
 import lightning.pytorch as pl
+import datasets
 try:
     from ElectraKAN.datamodule import ElectraKANDataModule, ElectraPretrainingDataset
     from ElectraKAN.handlers import ElectraModel
@@ -78,6 +79,16 @@ def get_dataloader(
         pin_memory=datamodule_config.pin_memory
     )
     return datamodule
+
+
+def download_datasets(
+    dataset_config: DictConfig
+) -> None:
+    raw_dataset = datasets.load_dataset(
+        path=dataset_config.raw_data.path,
+        split=dataset_config.raw_data.split
+    )
+    raw_dataset.save_to_disk(dataset_config.raw_data.path)
 
 
 if __name__ == '__main__':

@@ -16,13 +16,24 @@ dependencies = [
     "torchmetrics>=1.1.1",
     "transformers>=4.45.2",
     "ujson>=5.7.0",
+    "polars>=1.13.0",
+    "datasets>=3.3.1",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "pytest",
     "neuronx-cc",
-    "torch-neuronx"
+    "torch-neuronx",
+    "marimo",
+    "polars",
+    "line-profiler",
+    "memory-profiler",
+    "ipykernel",
+    "ipython",
+    "jupyter",
+    "jupyterlab",
+    "jupyterlab-git"
 ]
 
 [build-system]
@@ -37,22 +48,6 @@ authors = ["shin jung tae <shinjeongtae@gmail.com>"]
 packages = [
     { include = "ElectraKAN", from = "src" }
 ]
-
-[tool.poetry.dependencies]
-python = "^3.12"
-torch = ">=2.5.1"
-lightning = ">=2.3.1"
-hydra-core = ">=1.3.2"
-ruamel-yaml = ">=0.18.3"
-omegaconf = ">=2.3.0"
-torchmetrics = ">=1.1.1"
-transformers = ">=4.45.2"
-ujson = ">=5.7.0"
-
-[tool.poetry.group.dev.dependencies]
-pytest = "*"
-neuronx-cc = "*"
-torch-neuronx = "*"
 
 [tool.poetry.scripts]
 train = "ElectraKAN.train:main"

@@ -1,5 +1,7 @@
 max_length: 512
 tokenizer_name: "google/electra-base-discriminator"
+raw_data:
+    path: 
 datasets:
     train:
         path: /workspaces/https---github-com-klassikcat-kanelectra/data/dev.txt
