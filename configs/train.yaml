@@ -1,7 +1,12 @@
 max_length: 512
 tokenizer_name: "google/electra-base-discriminator"
 raw_data:
-    path: 
+    dataset_name: "wikipedia"
+    dataset_version: "20220301.en"
+    dataset_split:
+        train: "train[:80%]"
+        val: "train[80%:]"
+        test: "test"
 datasets:
     train:
         path: /workspaces/https---github-com-klassikcat-kanelectra/data/dev.txt

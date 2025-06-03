@@ -1,22 +1,16 @@
 import hydra
+import csv
 from transformers import AutoTokenizer
 from omegaconf import DictConfig
 from typing import List
 import lightning.pytorch as pl
-import datasets
-try:
-    from ElectraKAN.datamodule import ElectraKANDataModule, ElectraPretrainingDataset
-    from ElectraKAN.handlers import ElectraModel
-    from ElectraKAN import callbacks
-except ModuleNotFoundError:
-    import os
-    import sys
-    from pathlib import Path
-    PARENT_PATH = str(Path(os.path.abspath(__file__)).parent.parent.parent)
-    sys.path.append(PARENT_PATH)
-    from src.ElectraKAN.datamodule import ElectraKANDataModule, ElectraPretrainingDataset
-    from src.ElectraKAN.handlers import ElectraModel
-    from src.ElectraKAN import callbacks
+from datasets import load_dataset
+
+from ElectraKAN.datamodule import ElectraKANDataModule, ElectraPretrainingDataset
+from ElectraKAN.handlers import ElectraModel
+from ElectraKAN import callbacks
+
+from data_processing import DatasetDownloader, DatasetPreprocessor
 
 
 @hydra.main(config_path="../../configs", config_name="train")
@@ -81,14 +75,17 @@ def get_dataloader(
     return datamodule
 
 
-def download_datasets(
+def preprocess_datasets(
     dataset_config: DictConfig
 ) -> None:
-    raw_dataset = datasets.load_dataset(
-        path=dataset_config.raw_data.path,
-        split=dataset_config.raw_data.split
-    )
-    raw_dataset.save_to_disk(dataset_config.raw_data.path)
+    downloader = DatasetDownloader(dataset_config)
+    preprocessor = DatasetPreprocessor(tokenizer_path=dataset_config.tokenizer_name)
+    datasets = downloader()
+    for dataset_name, dataset in datasets:
+        array = preprocessor(dataset)
+        with open(f"data/{dataset_name}.jsonl", "w") as f:
+            for item in array:
+                f.write(orjson.dumps(item).decode("utf-8") + "\n")
 
 
 if __name__ == '__main__':
