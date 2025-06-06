@@ -4,9 +4,9 @@ from transformers import AutoTokenizer
 from omegaconf import DictConfig
 from typing import List
 import lightning.pytorch as pl
-from datasets import load_dataset
+from pyarrow import parquet as pq
 
-from ElectraKAN.datamodule import ElectraKANDataModule, ElectraPretrainingDataset
+from ElectraKAN.datamodule import ElectraKANDataModule, StreamingElectraPretrainingDataset
 from ElectraKAN.handlers import ElectraModel
 from ElectraKAN import callbacks
 
@@ -46,24 +46,53 @@ def get_dataloader(
     datamodule_config: DictConfig
     ) -> ElectraKANDataModule:
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
-    train_dataset = ElectraPretrainingDataset.from_csv(
-        path=dataset_config.train.path,
-        tokenizer=tokenizer,
-        max_length=dataset_config.train.max_length,
-        text_row=dataset_config.train.text_row
-    )
-    val_dataset = ElectraPretrainingDataset.from_csv(
-        path=dataset_config.val.path,
-        tokenizer=tokenizer,
-        max_length=dataset_config.val.max_length,
-        text_row=dataset_config.val.text_row
-    )
-    test_dataset = ElectraPretrainingDataset.from_csv(
-        path=dataset_config.test.path,
-        tokenizer=tokenizer,
-        max_length=dataset_config.test.max_length,
-        text_row=dataset_config.test.text_row
-    )
+    
+    # 파일 확장자에 따라 적절한 데이터셋 생성 메서드 선택
+    if str(dataset_config.train.path).endswith('.parquet'):
+        train_dataset = StreamingElectraPretrainingDataset.from_parquet(
+            path=dataset_config.train.path,
+            tokenizer=tokenizer,
+            max_length=dataset_config.train.max_length,
+            text_column="text",
+            chunk_size=datamodule_config.chunk_size
+        )
+        val_dataset = StreamingElectraPretrainingDataset.from_parquet(
+            path=dataset_config.val.path,
+            tokenizer=tokenizer,
+            max_length=dataset_config.val.max_length,
+            text_column="text",
+            chunk_size=datamodule_config.chunk_size
+        )
+        test_dataset = StreamingElectraPretrainingDataset.from_parquet(
+            path=dataset_config.test.path,
+            tokenizer=tokenizer,
+            max_length=dataset_config.test.max_length,
+            text_column="text",
+            chunk_size=datamodule_config.chunk_size
+        )
+    else:
+        train_dataset = StreamingElectraPretrainingDataset.from_csv(
+            path=dataset_config.train.path,
+            tokenizer=tokenizer,
+            max_length=dataset_config.train.max_length,
+            text_row=dataset_config.train.text_row,
+            chunk_size=datamodule_config.chunk_size
+        )
+        val_dataset = StreamingElectraPretrainingDataset.from_csv(
+            path=dataset_config.val.path,
+            tokenizer=tokenizer,
+            max_length=dataset_config.val.max_length,
+            text_row=dataset_config.val.text_row,
+            chunk_size=datamodule_config.chunk_size
+        )
+        test_dataset = StreamingElectraPretrainingDataset.from_csv(
+            path=dataset_config.test.path,
+            tokenizer=tokenizer,
+            max_length=dataset_config.test.max_length,
+            text_row=dataset_config.test.text_row,
+            chunk_size=datamodule_config.chunk_size
+        )
+    
     datamodule = ElectraKANDataModule(
         train_dataset=train_dataset,
         val_dataset=val_dataset,

@@ -20,6 +20,7 @@ dependencies = [
     "polars>=1.13.0",
     "datasets>=3.3.1",
     "orjson>=3.10.0",
+    "pyarrow>=19.0.1",
 ]
 
 [dependency-groups]

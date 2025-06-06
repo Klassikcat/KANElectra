@@ -12,7 +12,7 @@ from .handlers import (
     ElectraModel,
 )
 from .datamodule import (
-    ElectraClassificationDataset,
+    StreamingElectraClassificationDataset,
     ElectraKANDataModule,
-    ElectraPretrainingDataset,
+    StreamingElectraPretrainingDataset,
 )

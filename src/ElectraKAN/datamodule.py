@@ -1,8 +1,10 @@
 import csv
+from pathlib import Path
 from os import PathLike
-from typing import List, Tuple, Set, Optional
+from typing import List, Tuple, Set, Optional, Dict, Any
 
 import torch
+from pyarrow import parquet as pq
 import numpy as np
 from transformers import PreTrainedTokenizer, AutoTokenizer
 from torch.utils.data import Dataset, DataLoader
@@ -56,20 +58,47 @@ class ElectraKANDataModule(ptl.LightningDataModule):
         )
 
 
-class ElectraPretrainingDataset(Dataset):
+class StreamingElectraPretrainingDataset(Dataset):
     def __init__(
         self,
-        texts: List[str],
+        path: PathLike|str,
         tokenizer: PreTrainedTokenizer,
-        max_length: int = 512
+        max_length: int = 512,
+        chunk_size: int = 1000,
+        text_column: str = "text"
     ) -> None:
         super().__init__()
-        self.texts = texts
+        self.path = path
         self.tokenizer = tokenizer
         self.max_length = max_length
+        self.chunk_size = chunk_size
+        self.text_column = text_column
+        self.current_chunk = []
+        self.current_chunk_idx = 0
+        self.total_samples = self._count_samples()
+        
+    def _count_samples(self) -> int:
+        if str(self.path).endswith('.parquet'):
+            return len(pq.read_table(self.path))
+        else:
+            with open(self.path, 'r') as f:
+                return sum(1 for _ in f) - 1  # 헤더 제외
+                
+    def _load_next_chunk(self):
+        if str(self.path).endswith('.parquet'):
+            table = pq.read_table(self.path, skip=self.current_chunk_idx, take=self.chunk_size)
+            self.current_chunk = table.column(self.text_column).to_pylist()
+        else:
+            with open(self.path, 'r') as f:
+                reader = csv.reader(f)
+                next(reader)  # 헤더 스킵
+                for _ in range(self.current_chunk_idx):
+                    next(reader)
+                self.current_chunk = [next(reader)[0] for _ in range(min(self.chunk_size, self.total_samples - self.current_chunk_idx))]
+        self.current_chunk_idx += len(self.current_chunk)
 
     def __len__(self) -> int:
-        return len(self.texts)
+        return self.total_samples
 
     def dynamic_masking(self, tokens: torch.Tensor) -> torch.Tensor:
         tokens_to_be_masked: torch.Tensor = tokens.clone()
@@ -81,18 +110,24 @@ class ElectraPretrainingDataset(Dataset):
         tokens_to_be_masked = torch.where(padded_masked_indices == True, self.tokenizer.mask_token_id, tokens_to_be_masked)
         return tokens_to_be_masked
 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.LongTensor, torch.Tensor]:
-        tokenized: Tuple[torch.LongTensor, torch.LongTensor, torch.LongTensor] = tuple(
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.LongTensor]:
+        if idx >= self.current_chunk_idx or idx < self.current_chunk_idx - len(self.current_chunk):
+            self.current_chunk_idx = (idx // self.chunk_size) * self.chunk_size
+            self._load_next_chunk()
+        
+        local_idx = idx - (self.current_chunk_idx - len(self.current_chunk))
+        text = self.current_chunk[local_idx]
+        
+        tokenized = tuple(
             self.tokenizer(
-                self.texts[idx],
+                text,
                 return_attention_mask=True,
                 return_token_type_ids=True,
                 return_tensors='pt',
                 max_length=self.max_length,
                 padding="max_length",
                 truncation=True
-            )\
-            .values()
+            ).values()
         )
         input_ids, token_type_ids, attention_mask = tokenized
         masked_input_ids = self.dynamic_masking(input_ids.squeeze(0))
@@ -105,44 +140,98 @@ class ElectraPretrainingDataset(Dataset):
         tokenizer: PreTrainedTokenizer|str,
         text_row: int,
         text_b_row: Optional[int] = None,
-        max_length: int = 512
-        ):
+        max_length: int = 512,
+        chunk_size: int = 1000
+    ):
         if isinstance(tokenizer, str):
             tokenizer_instance = AutoTokenizer.from_pretrained(tokenizer)
         else:
             tokenizer_instance = tokenizer
-        with open(path, 'r') as f:
-            reader = csv.reader(f)
-            dataset = []
-            for row in reader:
-                text = row[text_row]
-                dataset.append(text)
-        return cls(dataset, tokenizer_instance, max_length)
+        return cls(path, tokenizer_instance, max_length, chunk_size)
+    
+    @classmethod
+    def from_parquet(
+        cls,
+        path: PathLike|str,
+        tokenizer: PreTrainedTokenizer|str,
+        text_column: str,
+        max_length: int = 512,
+        chunk_size: int = 1000
+    ):
+        if isinstance(tokenizer, str):
+            tokenizer_instance = AutoTokenizer.from_pretrained(tokenizer)
+        else:
+            tokenizer_instance = tokenizer
+        return cls(path, tokenizer_instance, max_length, chunk_size, text_column)
 
 
-class ElectraClassificationDataset(Dataset):
+class StreamingElectraClassificationDataset(Dataset):
     def __init__(
         self,
-        texts_and_labels: List[str],
+        path: PathLike|str,
         tokenizer: PreTrainedTokenizer,
         max_length: int = 512,
-        labels: Optional[List[str]|Set[str]] = None,
+        chunk_size: int = 1000,
+        text_column: str = "text",
+        label_column: str = "label"
     ) -> None:
         super().__init__()
-        self.texts_and_labels = texts_and_labels
-        self.labels = labels if labels else set([i[1] for i in texts_and_labels])
+        self.path = path
         self.tokenizer = tokenizer
         self.max_length = max_length
-        self.label_dict = {
-            v: k for k, v in enumerate(self.labels)
-        }
+        self.chunk_size = chunk_size
+        self.text_column = text_column
+        self.label_column = label_column
+        self.current_chunk = []
+        self.current_chunk_idx = 0
+        self.total_samples = self._count_samples()
+        self.label_dict = self._build_label_dict()
+        
+    def _count_samples(self) -> int:
+        if str(self.path).endswith('.parquet'):
+            return len(pq.read_table(self.path))
+        else:
+            with open(self.path, 'r') as f:
+                return sum(1 for _ in f) - 1  # 헤더 제외
+
+    def _build_label_dict(self) -> Dict[str, int]:
+        if str(self.path).endswith('.parquet'):
+            table = pq.read_table(self.path)
+            labels = set(table.column(self.label_column).to_pylist())
+        else:
+            with open(self.path, 'r') as f:
+                reader = csv.reader(f)
+                next(reader)  # 헤더 스킵
+                labels = set(row[1] for row in reader)
+        return {label: idx for idx, label in enumerate(sorted(labels))}
+                
+    def _load_next_chunk(self):
+        if str(self.path).endswith('.parquet'):
+            table = pq.read_table(self.path, skip=self.current_chunk_idx, take=self.chunk_size)
+            texts = table.column(self.text_column).to_pylist()
+            labels = table.column(self.label_column).to_pylist()
+            self.current_chunk = list(zip(texts, labels))
+        else:
+            with open(self.path, 'r') as f:
+                reader = csv.reader(f)
+                next(reader)  # 헤더 스킵
+                for _ in range(self.current_chunk_idx):
+                    next(reader)
+                self.current_chunk = [next(reader) for _ in range(min(self.chunk_size, self.total_samples - self.current_chunk_idx))]
+        self.current_chunk_idx += len(self.current_chunk)
 
     def __len__(self) -> int:
-        return len(self.texts_and_labels)
+        return self.total_samples
 
     def __getitem__(self, idx: int) -> Tuple[torch.LongTensor, torch.LongTensor, torch.LongTensor, torch.LongTensor]:
-        text, label = self.texts_and_labels[idx]
-        input_ids, token_type_ids, attention_mask = tuple(
+        if idx >= self.current_chunk_idx or idx < self.current_chunk_idx - len(self.current_chunk):
+            self.current_chunk_idx = (idx // self.chunk_size) * self.chunk_size
+            self._load_next_chunk()
+        
+        local_idx = idx - (self.current_chunk_idx - len(self.current_chunk))
+        text, label = self.current_chunk[local_idx]
+        
+        tokenized = tuple(
             self.tokenizer(
                 text,
                 return_attention_mask=True,
@@ -151,9 +240,9 @@ class ElectraClassificationDataset(Dataset):
                 max_length=self.max_length,
                 padding="max_length",
                 truncation=True
-            )\
-            .values()
+            ).values()
         )
+        input_ids, token_type_ids, attention_mask = tokenized
         label_id = self.label_dict[label]
         return input_ids.squeeze(0), attention_mask.squeeze(0), token_type_ids.squeeze(0), torch.tensor(label_id, dtype=torch.long)
 
@@ -165,17 +254,28 @@ class ElectraClassificationDataset(Dataset):
         text_row: int,
         label_row: int,
         text_b_row: Optional[int] = None,
-        max_length: int = 512
+        max_length: int = 512,
+        chunk_size: int = 1000
     ):
-        tokenizer = tokenizer if isinstance(tokenizer, PreTrainedTokenizer) else AutoTokenizer.from_pretrained(tokenizer)
-        dataset = []
-        labels = []
-        with open(path, 'r') as f:
-            reader = csv.reader(f)
-            for row in reader:
-                text = row[text_row]
-                text_b_row = row[text_b_row] if text_b_row else None
-                label = row[label_row]
-                dataset.append((text, label, text_b_row)) if text_b_row else dataset.append((text, label))
-                labels.append(label)
-        return cls(dataset, tokenizer, max_length=max_length, labels=list(set(labels)))
+        if isinstance(tokenizer, str):
+            tokenizer_instance = AutoTokenizer.from_pretrained(tokenizer)
+        else:
+            tokenizer_instance = tokenizer
+        return cls(path, tokenizer_instance, max_length, chunk_size)
+
+    @classmethod
+    def from_parquet(
+        cls,
+        path: PathLike|str,
+        tokenizer: PreTrainedTokenizer|str,
+        text_column: str,
+        label_column: str,
+        max_length: int = 512,
+        chunk_size: int = 1000
+    ):
+        if isinstance(tokenizer, str):
+            tokenizer_instance = AutoTokenizer.from_pretrained(tokenizer)
+        else:
+            tokenizer_instance = tokenizer
+        return cls(path, tokenizer_instance, max_length, chunk_size, text_column, label_column)
+

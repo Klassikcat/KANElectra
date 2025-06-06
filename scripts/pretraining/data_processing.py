@@ -1,3 +1,4 @@
+import tqdm
 import asyncio
 from typing import Dict, Any, List, Generator
 from omegaconf import DictConfig
@@ -85,13 +86,11 @@ class DatasetPreprocessor:
         output = []
         for text in tqdm.tqdm(texts["text"]):
             sentences = self.split_sentences(text)
-            output.extend(sentences)
+            output.extend([{"text": s} for s in sentences])
         return output
 
 
 if __name__ == "__main__":
-    import tqdm
-
     downloader = DatasetDownloader(dataset_config=DictConfig({
         "raw_data": {
             "dataset_name": "wikipedia",

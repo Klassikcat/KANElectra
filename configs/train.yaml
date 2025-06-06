@@ -24,6 +24,7 @@ datamodule:
     batch_size: 1
     num_workers: 4
     pin_memory: True
+    chunk_size: 1000  # 스트리밍 데이터셋의 청크 크기
 nn:
     generator_lr: 1e-3
     discriminator_lr: 1e-3
