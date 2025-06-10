@@ -14,4 +14,3 @@ RUN apt-get update && apt-get install -y \
         ca-certificates \
         curl \
         g++
-RUN pip install uv && uv sync
