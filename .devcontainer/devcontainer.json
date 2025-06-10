@@ -9,14 +9,6 @@
         "-e NOTEBOOK_ARGS='--allow-root'",
         "-e GRANT_SUDO=yes"
     ],
-    "features": {
-        "ghcr.io/devcontainers/features/docker-in-docker:2": {
-            "moby": true,
-            "dockerDashComposeVersion": "latest"
-        },
-        "ghcr.io/devcontainers/features/aws-cli:1": {},
-        "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {}
-    },
     "remoteEnv": {
         "PATH": "${containerEnv:PATH}:/usr/local/cuda/bin",
         "LD_LIBRARY_PATH": "$LD_LIBRARY_PATH:/usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64",
