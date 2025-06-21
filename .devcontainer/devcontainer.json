@@ -7,7 +7,8 @@
         "-e NB_UID=0",
         "-e NB_GID=0",
         "-e NOTEBOOK_ARGS='--allow-root'",
-        "-e GRANT_SUDO=yes"
+        "-e GRANT_SUDO=yes",
+        "--name=ElectraKAN-Nvidia-DevContainer"
     ],
     "remoteEnv": {
         "PATH": "${containerEnv:PATH}:/usr/local/cuda/bin",

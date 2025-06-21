@@ -4,6 +4,9 @@
         "dockerfile": "local.Dockerfile",
         "context": ".."
     },
+    "runArgs": [
+        "--name=ElectraKAN-local-DevContainer"
+    ],
     "features": {
         "ghcr.io/devcontainers/features/docker-in-docker:2": {
             "moby": true,
