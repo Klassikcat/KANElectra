@@ -1,5 +1,5 @@
 import hydra
-import csv
+import orjson
 from transformers import AutoTokenizer
 from omegaconf import DictConfig
 from typing import List

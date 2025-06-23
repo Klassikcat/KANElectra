@@ -1,5 +1,6 @@
 import tqdm
 import asyncio
+import json
 from typing import Dict, Any, List, Generator
 from omegaconf import DictConfig
 from datasets import load_dataset, Dataset
@@ -65,7 +66,7 @@ class DatasetPreprocessor:
 
     def split_sentences(self, text: str) -> list[str]:
         """텍스트를 문장 단위로 분리합니다."""
-        titles = ['mr', 'mrs', 'ms', 'miss', 'dr', 'prof', 'rev', 'hon']
+        titles = ['mr', 'mrs', 'ms', 'miss', 'dr', 'prof', 'rev', 'hon', 'st']
 
         result = []
         current = ""
@@ -82,12 +83,12 @@ class DatasetPreprocessor:
 
         return [s.replace("\n", " ") for s in result]
 
-    def __call__(self, texts: list[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        output = []
+    def __call__(self, texts: list[Dict[str, Any]]) -> Generator[Dict[str, Any], None, None]:
+        """Streaming 방식으로 텍스트를 처리하여 메모리 사용량을 줄입니다."""
         for text in tqdm.tqdm(texts["text"]):
             sentences = self.split_sentences(text)
-            output.extend([{"text": s} for s in sentences])
-        return output
+            for sentence in sentences:
+                yield {"text": sentence}
 
 
 if __name__ == "__main__":
@@ -103,8 +104,20 @@ if __name__ == "__main__":
         }
     }))
     preprocessor = DatasetPreprocessor(tokenizer_path="google/electra-base-discriminator")
-    arr = []
+    
+    # Streaming 방식으로 처리하고 파일에 저장
+    total_count = 0
     datasets = downloader()
-    for dataset_name, dataset in tqdm.tqdm(datasets.items()):
-        arr.extend(preprocessor(dataset))
-    print(len(arr))
+    
+    for dataset_name, dataset in tqdm.tqdm(datasets.items(), desc="Processing datasets"):
+        output_file = f"processed_{dataset_name}.jsonl"
+        with open(output_file, 'w', encoding='utf-8') as f:
+            for processed_item in preprocessor(dataset):
+                f.write(json.dumps(processed_item, ensure_ascii=False) + '\n')
+                total_count += 1
+                # 메모리 사용량을 더 줄이기 위해 주기적으로 flush
+                if total_count % 1000 == 0:
+                    f.flush()
+    
+    print(f"Total processed items: {total_count}")
+    print("Processed data saved to JSONL files")

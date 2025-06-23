@@ -21,6 +21,7 @@ dependencies = [
     "datasets>=3.3.1",
     "orjson>=3.10.0",
     "pyarrow>=19.0.1",
+    "jsonlines>=4.0.0",
 ]
 
 [dependency-groups]
@@ -37,7 +38,8 @@ dev = [
     "ipython",
     "jupyter",
     "jupyterlab",
-    "jupyterlab-git"
+    "jupyterlab-git",
+    "typer"
 ]
 
 [build-system]
