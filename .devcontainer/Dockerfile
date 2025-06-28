@@ -19,4 +19,7 @@ RUN useradd -m -s /bin/bash vscode && \
     usermod -aG sudo vscode && \
     echo "vscode ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
+COPY --chown=vscode:vscode .devcontainer/init /usr/local/bin/init
+RUN chmod +x /usr/local/bin/init
+
 USER vscode
