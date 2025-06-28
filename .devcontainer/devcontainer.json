@@ -38,6 +38,6 @@
         }
     },
     "postCreateCommand": [
-        "/bin/bash .devcontainer/install_devpod_dependencies.sh"
+        "init"
     ]
 }
