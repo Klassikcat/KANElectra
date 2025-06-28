@@ -13,15 +13,13 @@ RUN (type -p wget >/dev/null || (apt update && apt install wget -y)) \
         && apt update \
         && apt-get install -y $(cat /tmp/packages.txt)
 
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh 
-
-ARG HOST_UID=1000
-RUN useradd -m -s /bin/bash -u $HOST_UID vscode \
-    && usermod -aG sudo vscode \
-    && echo "vscode ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
-
+RUN usermod -l vscode ubuntu && \
+    usermod -d /home/vscode -m vscode && \
+    usermod -aG sudo vscode && \
+    echo "vscode ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 COPY --chown=vscode:vscode .devcontainer/init /usr/local/bin/init
 RUN chmod +x /usr/local/bin/init
 
 USER vscode
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh 
