@@ -1,6 +1,14 @@
 {
     "name": "ElectraKAN-Nvidia-DevContainer",
-    "image": "glcr.b-data.ch/jupyterlab/cuda/python/base:3-devtools-docker-root",
+    "build":  {
+        "dockerfile": ".devcontainer/Dockerfile",
+        "context": ".."
+
+    },
+    "features": {
+        "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+        "ghcr.io/devcontainers/features/aws-cli:1.1.1": {}
+    },
     "runArgs": [
         "--gpus=all",
         "-e NB_USER=root",
