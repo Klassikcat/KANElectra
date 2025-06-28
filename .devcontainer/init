@@ -2,6 +2,7 @@
 
 set -e -u -o pipefail
 
+curl -LsSf https://astral.sh/uv/install.sh | sh
+. $HOME/.local/bin/env
 git config --global core.editor 'vim'
-
 uv sync

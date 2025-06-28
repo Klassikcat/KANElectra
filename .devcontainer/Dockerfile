@@ -22,4 +22,3 @@ COPY --chown=vscode:vscode .devcontainer/init /usr/local/bin/init
 RUN chmod +x /usr/local/bin/init
 
 USER vscode
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh 
