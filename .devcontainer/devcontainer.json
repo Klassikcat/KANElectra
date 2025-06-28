@@ -2,12 +2,16 @@
     "name": "ElectraKAN-Nvidia-DevContainer",
     "build":  {
         "dockerfile": "Dockerfile",
-        "context": ".."
+        "context": "..",
+        "args": {
+            "IMAGE": "nvidia/cuda:12.8.1-cudnn-devel-ubuntu24.04"
+        }
 
     },
     "features": {
         "ghcr.io/devcontainers/features/docker-in-docker:2": {},
-        "ghcr.io/devcontainers/features/aws-cli:1.1.1": {}
+        "ghcr.io/devcontainers/features/aws-cli:1.1.1": {},
+        "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {}
     },
     "runArgs": [
         "--gpus=all",

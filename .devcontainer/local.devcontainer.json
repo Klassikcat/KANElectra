@@ -1,8 +1,11 @@
 {
     "name": "ElectraKAN-local-DevContainer",
     "build": {
-        "dockerfile": "local.Dockerfile",
-        "context": ".."
+        "dockerfile": "Dockerfile",
+        "context": "..",
+        "args": {
+            "IMAGE": "mcr.microsoft.com/devcontainers/python:dev-3.13-bookworm"
+        }
     },
     "runArgs": [
         "--name=ElectraKAN-local-DevContainer"
@@ -30,6 +33,6 @@
         }
     },
     "postCreateCommand": [
-        "/bin/bash .devcontainer/install_devpod_dependencies.sh"
+        "init"
     ]
 }
