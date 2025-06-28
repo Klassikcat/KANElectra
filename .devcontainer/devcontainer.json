@@ -11,11 +11,6 @@
     },
     "runArgs": [
         "--gpus=all",
-        "-e NB_USER=root",
-        "-e NB_UID=0",
-        "-e NB_GID=0",
-        "-e NOTEBOOK_ARGS='--allow-root'",
-        "-e GRANT_SUDO=yes",
         "--name=ElectraKAN-Nvidia-DevContainer"
     ],
     "remoteEnv": {

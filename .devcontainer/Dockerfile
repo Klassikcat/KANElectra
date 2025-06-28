@@ -1,5 +1,5 @@
 ARG OS_VERSION=cudnn-devel-ubuntu24.04
-ARG CUDA_VERSION=12.9.1
+ARG CUDA_VERSION=12.8.1
 FROM nvidia/cuda:${CUDA_VERSION}-${OS_VERSION}
 
 COPY .devcontainer/packages.txt /tmp/packages.txt
