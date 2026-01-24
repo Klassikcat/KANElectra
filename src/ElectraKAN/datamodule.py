@@ -1,23 +1,25 @@
 import csv
 from pathlib import Path
 from os import PathLike
-from typing import List, Tuple, Set, Optional, Dict, Any
 
 import torch
 from pyarrow import parquet as pq
-import numpy as np
-from transformers import PreTrainedTokenizer, AutoTokenizer
+from transformers import AutoTokenizer
+from transformers.tokenization_utils import PreTrainedTokenizer
 from torch.utils.data import Dataset, DataLoader
 import torch.nn.functional as F
 import lightning.pytorch as ptl
 
 
+Batch = tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
+
+
 class ElectraKANDataModule(ptl.LightningDataModule):
     def __init__(
         self,
-        train_dataset: Dataset,
-        val_dataset: Dataset,
-        test_dataset: Dataset,
+        train_dataset: Dataset[Batch],
+        val_dataset: Dataset[Batch],
+        test_dataset: Dataset[Batch],
         batch_size: int,
         num_workers: int,
         pin_memory: bool
@@ -30,7 +32,7 @@ class ElectraKANDataModule(ptl.LightningDataModule):
         self.num_workers = num_workers
         self.pin_memory = pin_memory
 
-    def train_dataloader(self) -> DataLoader:
+    def train_dataloader(self) -> DataLoader[Batch]:
         return DataLoader(
             self.train_dataset,
             batch_size=self.batch_size,
@@ -39,7 +41,7 @@ class ElectraKANDataModule(ptl.LightningDataModule):
             shuffle=True
         )
 
-    def val_dataloader(self) -> DataLoader:
+    def val_dataloader(self) -> DataLoader[Batch]:
         return DataLoader(
             self.val_dataset,
             batch_size=self.batch_size,
@@ -48,7 +50,7 @@ class ElectraKANDataModule(ptl.LightningDataModule):
             shuffle=False
         )
 
-    def test_dataloader(self) -> DataLoader:
+    def test_dataloader(self) -> DataLoader[Batch]:
         return DataLoader(
             self.test_dataset,
             batch_size=self.batch_size,
@@ -58,10 +60,10 @@ class ElectraKANDataModule(ptl.LightningDataModule):
         )
 
 
-class StreamingElectraPretrainingDataset(Dataset):
+class StreamingElectraPretrainingDataset(Dataset[Batch]):
     def __init__(
         self,
-        path: PathLike|str,
+        path: PathLike[str] | str,
         tokenizer: PreTrainedTokenizer,
         max_length: int = 512,
         chunk_size: int = 1000,
@@ -86,7 +88,9 @@ class StreamingElectraPretrainingDataset(Dataset):
                 
     def _load_next_chunk(self):
         if str(self.path).endswith('.parquet'):
-            table = pq.read_table(self.path, skip=self.current_chunk_idx, take=self.chunk_size)
+            table = pq.read_table(self.path).slice(
+                self.current_chunk_idx, self.chunk_size
+            )
             self.current_chunk = table.column(self.text_column).to_pylist()
         else:
             with open(self.path, 'r') as f:
@@ -102,15 +106,34 @@ class StreamingElectraPretrainingDataset(Dataset):
 
     def dynamic_masking(self, tokens: torch.Tensor) -> torch.Tensor:
         tokens_to_be_masked: torch.Tensor = tokens.clone()
-        end_of_token: int = int(torch.where(tokens == self.tokenizer.sep_token_id)[0]) - 1
+        sep_token_id = self.tokenizer.sep_token_id
+        if not isinstance(sep_token_id, int):
+            raise ValueError("sep_token_id is not set on tokenizer")
+        sep_positions = torch.where(tokens == sep_token_id)[0]
+        if len(sep_positions) == 0:
+            raise ValueError("SEP token not found in sequence")
+        end_of_token = int(sep_positions[0]) - 1
         masked_indices = torch.bernoulli(torch.full((end_of_token,), 0.15)).bool()
-        if masked_indices[0] == True:
+        if masked_indices[0]:
             masked_indices[0] = False
-        padded_masked_indices: torch.Tensor = F.pad(masked_indices, mode='constant', value=False, pad=(self.max_length - end_of_token, 0))
-        tokens_to_be_masked = torch.where(padded_masked_indices == True, self.tokenizer.mask_token_id, tokens_to_be_masked)
+        padded_masked_indices: torch.Tensor = F.pad(
+            masked_indices,
+            mode="constant",
+            value=False,
+            pad=(self.max_length - end_of_token, 0),
+        )
+        mask_token_id = self.tokenizer.mask_token_id
+        if not isinstance(mask_token_id, int):
+            raise ValueError("mask_token_id is not set on tokenizer")
+        mask_token_value = torch.tensor(
+            mask_token_id, device=tokens_to_be_masked.device
+        )
+        tokens_to_be_masked = torch.where(
+            padded_masked_indices, mask_token_value, tokens_to_be_masked
+        )
         return tokens_to_be_masked
 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.LongTensor]:
+    def __getitem__(self, idx: int) -> Batch:
         if idx >= self.current_chunk_idx or idx < self.current_chunk_idx - len(self.current_chunk):
             self.current_chunk_idx = (idx // self.chunk_size) * self.chunk_size
             self._load_next_chunk()
@@ -136,10 +159,10 @@ class StreamingElectraPretrainingDataset(Dataset):
     @classmethod
     def from_csv(
         cls,
-        path: PathLike|str,
+        path: PathLike[str] | str,
         tokenizer: PreTrainedTokenizer|str,
         text_row: int,
-        text_b_row: Optional[int] = None,
+        text_b_row: int | None = None,
         max_length: int = 512,
         chunk_size: int = 1000
     ):
@@ -152,7 +175,7 @@ class StreamingElectraPretrainingDataset(Dataset):
     @classmethod
     def from_parquet(
         cls,
-        path: PathLike|str,
+        path: PathLike[str] | str,
         tokenizer: PreTrainedTokenizer|str,
         text_column: str,
         max_length: int = 512,
@@ -165,10 +188,10 @@ class StreamingElectraPretrainingDataset(Dataset):
         return cls(path, tokenizer_instance, max_length, chunk_size, text_column)
 
 
-class StreamingElectraClassificationDataset(Dataset):
+class StreamingElectraClassificationDataset(Dataset[Batch]):
     def __init__(
         self,
-        path: PathLike|str,
+        path: PathLike[str] | str,
         tokenizer: PreTrainedTokenizer,
         max_length: int = 512,
         chunk_size: int = 1000,
@@ -194,7 +217,7 @@ class StreamingElectraClassificationDataset(Dataset):
             with open(self.path, 'r') as f:
                 return sum(1 for _ in f) - 1  # 헤더 제외
 
-    def _build_label_dict(self) -> Dict[str, int]:
+    def _build_label_dict(self) -> dict[str, int]:
         if str(self.path).endswith('.parquet'):
             table = pq.read_table(self.path)
             labels = set(table.column(self.label_column).to_pylist())
@@ -207,7 +230,9 @@ class StreamingElectraClassificationDataset(Dataset):
                 
     def _load_next_chunk(self):
         if str(self.path).endswith('.parquet'):
-            table = pq.read_table(self.path, skip=self.current_chunk_idx, take=self.chunk_size)
+            table = pq.read_table(self.path).slice(
+                self.current_chunk_idx, self.chunk_size
+            )
             texts = table.column(self.text_column).to_pylist()
             labels = table.column(self.label_column).to_pylist()
             self.current_chunk = list(zip(texts, labels))
@@ -223,7 +248,7 @@ class StreamingElectraClassificationDataset(Dataset):
     def __len__(self) -> int:
         return self.total_samples
 
-    def __getitem__(self, idx: int) -> Tuple[torch.LongTensor, torch.LongTensor, torch.LongTensor, torch.LongTensor]:
+    def __getitem__(self, idx: int) -> Batch:
         if idx >= self.current_chunk_idx or idx < self.current_chunk_idx - len(self.current_chunk):
             self.current_chunk_idx = (idx // self.chunk_size) * self.chunk_size
             self._load_next_chunk()
@@ -249,11 +274,11 @@ class StreamingElectraClassificationDataset(Dataset):
     @classmethod
     def from_csv(
         cls,
-        path: PathLike|str,
+        path: PathLike[str] | str,
         tokenizer: PreTrainedTokenizer|str,
         text_row: int,
         label_row: int,
-        text_b_row: Optional[int] = None,
+        text_b_row: int | None = None,
         max_length: int = 512,
         chunk_size: int = 1000
     ):
@@ -266,7 +291,7 @@ class StreamingElectraClassificationDataset(Dataset):
     @classmethod
     def from_parquet(
         cls,
-        path: PathLike|str,
+        path: PathLike[str] | str,
         tokenizer: PreTrainedTokenizer|str,
         text_column: str,
         label_column: str,
@@ -278,4 +303,3 @@ class StreamingElectraClassificationDataset(Dataset):
         else:
             tokenizer_instance = tokenizer
         return cls(path, tokenizer_instance, max_length, chunk_size, text_column, label_column)
-

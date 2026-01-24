@@ -2,7 +2,8 @@ import os
 import sys
 from pathlib import Path
 import pytest
-from datasets import load_dataset
+from typing import Any, cast
+from datasets import load_dataset, Dataset
 from transformers import AutoTokenizer
 import pyarrow as pa
 from pyarrow import parquet as pq
@@ -19,13 +20,16 @@ from scripts.pretraining.data_processing import DatasetPreprocessor
 def test_dataset_download_and_preprocess():
     """위키피디아 데이터셋 다운로드 및 전처리 테스트"""
     # 1. 데이터셋 다운로드
-    dataset = load_dataset("wikipedia", "20220301.en", split="train[:1%]")
-    assert len(dataset) > 0, "데이터셋이 비어있습니다."
+    dataset = cast(
+        Dataset, load_dataset("wikipedia", "20220301.en", split="train[:1%]")
+    )
+    assert dataset.num_rows > 0, "데이터셋이 비어있습니다."
     
     # 2. 전처리
     tokenizer = AutoTokenizer.from_pretrained("google/electra-base-discriminator")
     preprocessor = DatasetPreprocessor(tokenizer_path="google/electra-base-discriminator")
-    processed_data = preprocessor(dataset)
+    items: list[dict[str, Any]] = [dict(item) for item in dataset]
+    processed_data = list(preprocessor(items))
     
     # 3. Parquet으로 저장
     output_path = "data/test_wikipedia.parquet"
@@ -79,6 +83,7 @@ def test_chunk_loading():
     )
     
     # 첫 번째 청크 로딩
+    dataset._load_next_chunk()
     first_chunk = dataset.current_chunk
     assert len(first_chunk) > 0, "첫 번째 청크가 비어있습니다."
     

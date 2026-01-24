@@ -2,7 +2,6 @@ import hydra
 import orjson
 from transformers import AutoTokenizer
 from omegaconf import DictConfig
-from typing import List
 import lightning.pytorch as pl
 from pyarrow import parquet as pq
 
@@ -29,8 +28,8 @@ def main(cfg: DictConfig) -> None:
 
 def get_callbacks(
     callbacks_config: DictConfig
-    ) -> List[pl.Callback]:
-    callback_lst: List[pl.Callback] = []
+    ) -> list[pl.Callback]:
+    callback_lst: list[pl.Callback] = []
     for config in callbacks_config:
         try:
             callback = getattr(pl.callbacks, config.name)(**config.params)

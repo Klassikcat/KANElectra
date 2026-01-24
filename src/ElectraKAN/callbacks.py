@@ -1,40 +1,43 @@
+import importlib
 import os
 from pathlib import Path
+from datetime import timedelta
+from typing import Literal
+
 import torch
 from torch import Tensor
 import lightning.pytorch as pl
 from lightning.fabric.utilities.types import _PATH
-from typing import Optional, Literal, Dict, Tuple
-from datetime import timedelta
+from lightning.pytorch.callbacks import ModelCheckpoint
 
 
-class PretrainingCheckpoint(pl.callbacks.ModelCheckpoint):
+class PretrainingCheckpoint(ModelCheckpoint):
     def __init__(self) -> None:
         super().__init__()  # TODO: Add a checkpointer for generator and discriminator
 
 
-class OnnxCompiler(pl.callbacks.ModelCheckpoint):
+class OnnxCompiler(ModelCheckpoint):
     def __init__(
         self,
-        dirpath: Optional[_PATH] = None,
-        filename: Optional[str] = None,
-        monitor: Optional[str] = None,
+        dirpath: _PATH | None = None,
+        filename: str | None = None,
+        monitor: str | None = None,
         verbose: bool = False,
-        save_last: Optional[Literal[True, False, "link"]] = None,
+        save_last: Literal[True, False, "link"] | None = None,
         save_top_k: int = 1,
         save_weights_only: bool = False,
         mode: str = "min",
         auto_insert_metric_name: bool = True,
-        every_n_train_steps: Optional[int] = None,
-        train_time_interval: Optional[timedelta] = None,
-        every_n_epochs: Optional[int] = None,
-        save_on_train_epoch_end: Optional[bool] = None,
+        every_n_train_steps: int | None = None,
+        train_time_interval: timedelta | None = None,
+        every_n_epochs: int | None = None,
+        save_on_train_epoch_end: bool | None = None,
         enable_version_counter: bool = True,
         save_onnx: bool = True,
         save_tensorrt_engine: bool = False,
-        min_shape: Tuple[int, int] = (1, 512),
-        opt_shape: Tuple[int, int] = (16, 512),
-        max_shape: Tuple[int, int] = (32, 512),
+        min_shape: tuple[int, int] = (1, 512),
+        opt_shape: tuple[int, int] = (16, 512),
+        max_shape: tuple[int, int] = (32, 512),
         save_mixed_precision: bool = True,
     ):
         super().__init__(
@@ -57,29 +60,28 @@ class OnnxCompiler(pl.callbacks.ModelCheckpoint):
         self.opt_shape = opt_shape
         self.max_shape = max_shape
         self.mixed_precision = save_mixed_precision
-        self.save_dir = Path(dirpath) / filename  # TODO: find out optimial name
+        dirpath_value = Path(dirpath) if dirpath is not None else Path(".")
+        filename_value = filename or "model"
+        self.save_dir = dirpath_value / filename_value  # TODO: find out optimial name
         if not save_onnx:
             assert (
                 save_tensorrt_engine
             ), "save_tensorrt_engine must be True if save_onnx is False. if you don't want to save neither .onnx and .engine, you should use ModelCheckpoint instead."
         self.save_onnx = save_onnx
         if save_tensorrt_engine:
-            import tensorrt as trt
-
+            trt = importlib.import_module("tensorrt")
             self.trt_logger = trt.Logger(min_severity=trt.Logger.WARNING)
             self.builder = trt.Builder(self.trt_logger)
-            self.network = trt.builder.create_network(
+            self.network = self.builder.create_network(
                 1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
             )
         else:
-            self.builder = False
+            self.builder = None
+            self.network = None
 
     def on_train_epoch_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule):
         super().on_train_epoch_end(trainer, pl_module)
-        if not self._should_skip_saving_checkpoint(
-            trainer
-        ) and not self._should_save_on_train_epoch_end(trainer):
-            monitor_candidates = self._monitor_candidates(trainer)
+        monitor_candidates = self._monitor_candidates(trainer)
         if (
             self._every_n_epochs >= 1
             and (trainer.current_epoch + 1) % self._every_n_epochs == 0
@@ -87,18 +89,12 @@ class OnnxCompiler(pl.callbacks.ModelCheckpoint):
             self._save_into_onnx(trainer, monitor_candidates)
             if self.builder:
                 self._save_tensorRT_engine(trainer, monitor_candidates)
-        self._save_into_onnx(trainer, monitor_candidates)
-        if self.builder:
-            self._save_tensorRT_engine(trainer, monitor_candidates)
 
     def on_validation_epoch_end(
         self, trainer: pl.Trainer, pl_module: pl.LightningModule
     ):
-        super().on_train_epoch_end(trainer, pl_module)
-        if not self._should_skip_saving_checkpoint(
-            trainer
-        ) and not self._should_save_on_train_epoch_end(trainer):
-            monitor_candidates = self._monitor_candidates(trainer)
+        super().on_validation_epoch_end(trainer, pl_module)
+        monitor_candidates = self._monitor_candidates(trainer)
         if (
             self._every_n_epochs >= 1
             and (trainer.current_epoch + 1) % self._every_n_epochs == 0
@@ -106,15 +102,14 @@ class OnnxCompiler(pl.callbacks.ModelCheckpoint):
             onnx_save_path = self._save_into_onnx(trainer, monitor_candidates)
             if self.builder:
                 self._save_tensorRT_engine(trainer, monitor_candidates, onnx_save_path)
-        onnx_save_path = self._save_into_onnx(trainer, monitor_candidates)
-        if self.builder:
-            self._save_tensorRT_engine(trainer, monitor_candidates, onnx_save_path)
 
     def _save_into_onnx(
-        self, trainer: pl.Trainer, monitor_candidates: Dict[str, Tensor]
+        self, trainer: pl.Trainer, monitor_candidates: dict[str, Tensor]
     ) -> str:
+        if trainer.model is None:
+            raise RuntimeError("Trainer model is not initialized.")
         input_ids = torch.randint(0, 10000, (8, 512))
-        attention_masks = torch.randint(0, 1, (8, 512))
+        attention_masks = torch.ones((8, 512), dtype=torch.long)
         token_type_ids = torch.randint(0, 1, (8, 512))
 
         trainer.model.eval()
@@ -130,10 +125,11 @@ class OnnxCompiler(pl.callbacks.ModelCheckpoint):
             "outputs": {0: "batch_size"},
         }
 
+        onnx_save_path = str(self.save_dir) + ".onnx"
         torch.onnx.export(
             trainer.model,  # 학습된 모델 인스턴스
             (input_ids, attention_masks, token_type_ids),  # input args
-            str(self.save_dir) + ".onnx",  # 저장 경로
+            onnx_save_path,  # 저장 경로
             export_params=True,  # 모델의 학습된 파라미터를 저장할 것인지
             opset_version=17,  # 사용할 onnx의 버전
             do_constant_folding=True,
@@ -141,11 +137,17 @@ class OnnxCompiler(pl.callbacks.ModelCheckpoint):
             output_names=["outputs"],
             dynamic_axes=dynamic_axes,
         )
+        return onnx_save_path
 
     def _save_tensorRT_engine(
-        self, trainer: pl.Trainer, monitor_candidates: Dict[str, Tensor]
+        self,
+        trainer: pl.Trainer,
+        monitor_candidates: dict[str, Tensor],
+        onnx_save_path: str | None = None,
     ) -> None:
-        import tensorrt as trt
+        if self.builder is None or self.network is None:
+            raise RuntimeError("TensorRT builder is not initialized.")
+        trt = importlib.import_module("tensorrt")
 
         parser = trt.OnnxParser(self.network, self.trt_logger)
         parser.parse_from_file(str(self.save_dir) + ".onnx")

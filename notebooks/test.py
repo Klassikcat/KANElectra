@@ -3,6 +3,7 @@ from omegaconf import DictConfig
 from pathlib import Path
 import tqdm
 sys.path.append(str(Path(__file__).parent.parent))
+import pyarrow as pa
 from pyarrow import parquet as pq
 from scripts.pretraining.data_processing import DatasetDownloader, DatasetPreprocessor
 
@@ -21,5 +22,5 @@ preprocessor = DatasetPreprocessor(tokenizer_path="google/electra-base-discrimin
 datasets = downloader()
 
 for dataset_name, dataset in tqdm.tqdm(datasets.items()):
-    array = preprocessor(dataset)
-    pq.write_table(pq.Table.from_pylist(array), f"data/{dataset_name}.parquet")
+    array = list(preprocessor(dataset))
+    pq.write_table(pa.Table.from_pylist(array), f"data/{dataset_name}.parquet")

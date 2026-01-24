@@ -1,67 +1,67 @@
 max_length: 512
 tokenizer_name: "google/electra-base-discriminator"
 raw_data:
-    dataset_name: "wikipedia"
-    dataset_version: "20220301.en"
-    dataset_split:
-        train: "train[:80%]"
-        val: "train[80%:]"
-        test: "test"
+  dataset_name: "wikipedia"
+  dataset_version: "20220301.en"
+  dataset_split:
+    train: "train[:80%]"
+    val: "train[80%:]"
+    test: "test"
 datasets:
-    train:
-        path: /workspaces/https---github-com-klassikcat-kanelectra/data/dev.txt
-        max_length: ${max_length}
-        text_row: 0
-    val:
-        path: /workspaces/https---github-com-klassikcat-kanelectra/data/dev.txt
-        max_length: ${max_length}
-        text_row: 0
-    test:
-        path: /workspaces/https---github-com-klassikcat-kanelectra/data/dev.txt
-        max_length: ${max_length}
-        text_row: 0
+  train:
+    path: /workspaces/https---github-com-klassikcat-kanelectra/data/dev.txt
+    max_length: ${max_length}
+    text_row: 0
+  val:
+    path: /workspaces/https---github-com-klassikcat-kanelectra/data/dev.txt
+    max_length: ${max_length}
+    text_row: 0
+  test:
+    path: /workspaces/https---github-com-klassikcat-kanelectra/data/dev.txt
+    max_length: ${max_length}
+    text_row: 0
 datamodule:
-    batch_size: 1
-    num_workers: 4
-    pin_memory: True
-    chunk_size: 1000  # 스트리밍 데이터셋의 청크 크기
+  batch_size: 1
+  num_workers: 4
+  pin_memory: True
+  chunk_size: 1000 #
 nn:
-    generator_lr: 1e-3
-    discriminator_lr: 1e-3
-    mask_token_id: 103 # [MASK] token of google/electra-base-discriminator
-    generator:
-        vocab_size: 35000
-        embedding_dim: 768
-        vocab_type_size: 2
-        embedding_dropout_p: 0.1
-        hidden_dim: 768
-        num_heads: 4
-        ff_dim: 1024
-        num_layers: 12
-        max_pos_embedding: 512
-    discriminator:
-        vocab_size: 35000
-        num_labels: 2
-        embedding_dim: 768
-        vocab_type_size: 2
-        embedding_dropout_p: 0.1
-        hidden_dim: 768
-        num_heads: 4
-        ff_dim: 1024
-        num_layers: 12
-        max_pos_embedding: 512
+  generator_lr: 1e-3
+  discriminator_lr: 1e-3
+  mask_token_id: 103 # [MASK] token of google/electra-base-discriminator
+  generator:
+    vocab_size: 35000
+    embedding_dim: 768
+    vocab_type_size: 2
+    embedding_dropout_p: 0.1
+    hidden_dim: 768
+    num_heads: 4
+    ff_dim: 1024
+    num_layers: 12
+    max_pos_embedding: 512
+  discriminator:
+    vocab_size: 35000
+    num_labels: 2
+    embedding_dim: 768
+    vocab_type_size: 2
+    embedding_dropout_p: 0.1
+    hidden_dim: 768
+    num_heads: 4
+    ff_dim: 1024
+    num_layers: 12
+    max_pos_embedding: 512
 trainer:
-    accelerator: auto
-    devices: 3
-    max_epochs: 10
-    strategy: ddp
-    precision: 32
-    enable_progress_bar: true
-    callbacks:
-        - name: ModelCheckpoint
-          params:
-              monitor: val_loss
-              mode: min
-              save_top_k: 1
-              dirpath: checkpoints
-              filename: "{epoch}-{val_loss:.2f}"
+  accelerator: auto
+  devices: 3
+  max_epochs: 10
+  strategy: ddp
+  precision: 32
+  enable_progress_bar: true
+  callbacks:
+    - name: ModelCheckpoint
+      params:
+        monitor: val_loss
+        mode: min
+        save_top_k: 1
+        dirpath: checkpoints
+        filename: "{epoch}-{val_loss:.2f}"

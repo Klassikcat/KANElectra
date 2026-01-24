@@ -1,7 +1,8 @@
 import tqdm
 import asyncio
 import json
-from typing import Dict, Any, List, Generator
+from typing import Any
+from collections.abc import Generator
 from omegaconf import DictConfig
 from datasets import load_dataset, Dataset
 from transformers import AutoTokenizer
@@ -14,7 +15,7 @@ class DatasetDownloader:
     async def download_dataset(self, dataset_name: str, dataset_version: str, dataset_split: str) -> Dataset:
         return load_dataset(dataset_name, dataset_version, split=dataset_split)
 
-    async def download_datasets(self) -> Dict[str, Dataset]:
+    async def download_datasets(self) -> dict[str, Dataset]:
         tasks = [
             self.download_dataset(
                 dataset_name=self.dataset_config.raw_data.dataset_name,
@@ -40,7 +41,7 @@ class DatasetDownloader:
             "test": result[2]
         }
 
-    def __call__(self) -> Dict[str, Dataset]:
+    def __call__(self) -> dict[str, Dataset]:
         return asyncio.run(self.download_datasets())
 
 
@@ -83,9 +84,17 @@ class DatasetPreprocessor:
 
         return [s.replace("\n", " ") for s in result]
 
-    def __call__(self, texts: list[Dict[str, Any]]) -> Generator[Dict[str, Any], None, None]:
+    def __call__(
+        self,
+        texts: list[dict[str, Any]] | Dataset | dict[str, list[str]],
+    ) -> Generator[dict[str, Any], None, None]:
         """Streaming 방식으로 텍스트를 처리하여 메모리 사용량을 줄입니다."""
-        for text in tqdm.tqdm(texts["text"]):
+        if isinstance(texts, list):
+            text_iter = [item["text"] for item in texts]
+        else:
+            text_iter = texts["text"]
+
+        for text in tqdm.tqdm(text_iter):
             sentences = self.split_sentences(text)
             for sentence in sentences:
                 yield {"text": sentence}

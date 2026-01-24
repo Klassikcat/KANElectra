@@ -1,3 +1,5 @@
+from typing import cast
+
 import torch
 import torch.nn.functional as F
 
@@ -37,6 +39,7 @@ class KANLinear(torch.nn.Module):
             .contiguous()
         )
         self.register_buffer("grid", grid)
+        self.grid: torch.Tensor
 
         self.base_weight = torch.nn.Parameter(
             torch.Tensor(out_features, in_features)
@@ -285,14 +288,14 @@ class KAN(torch.nn.Module):
         self.spline_order = k
         self.bias_trainable = bias_trainable  # TODO
 
-        self.layers = torch.nn.ModuleList()
+        self.layers: torch.nn.ModuleList = torch.nn.ModuleList()
         for in_features, out_features in zip(width, width[1:]):
             self.layers.append(
                 KANLinear(
                     in_features,
                     out_features,
                     grid_size=grid,
-                    spline_order=grid,
+                    spline_order=k,
                     scale_noise=noise_scale,
                     scale_base=noise_scale_base,
                     scale_spline=scale_spline,
@@ -308,9 +311,10 @@ class KAN(torch.nn.Module):
         x = x.view(-1, T)
 
         for layer in self.layers:
+            linear_layer = cast(KANLinear, layer)
             if update_grid:
-                layer.update_grid(x)
-            x = layer(x)
+                linear_layer.update_grid(x)
+            x = linear_layer(x)
 
         U = x.shape[1]
 
@@ -322,7 +326,7 @@ class KAN(torch.nn.Module):
         self, regularize_activation=1.0, regularize_entropy=1.0
     ):
         return sum(
-            layer.regularization_loss(
+            cast(KANLinear, layer).regularization_loss(
                 regularize_activation, regularize_entropy
             )
             for layer in self.layers
